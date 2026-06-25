@@ -172,6 +172,13 @@ def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
                                    soh_threshold=soh_threshold)
     all_splits = make_splits(ds_for_splits, cfg)
 
+    import copy
+    def _slice_ds(base_ds, indices):
+        ds = copy.copy(base_ds)
+        ds._samples = [base_ds._all_samples[i] for i in indices
+                       if i < len(base_ds._all_samples)]
+        return ds
+
     all_metrics = []
     for ckpt_path in ckpt_files:
         basename = os.path.basename(ckpt_path)
@@ -184,10 +191,8 @@ def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
             continue
 
         split   = all_splits[si]
-        test_ds = spec.dataset_cls(pkl_dir, n_cycles=n_cycles, n_grid=n_grid,
-                                   soh_threshold=soh_threshold,
-                                   split_indices=split['test'],
-                                   use_log_rul=use_log_rul)
+        test_ds = _slice_ds(ds_for_splits, split['test'])
+        test_ds.use_log_rul = use_log_rul
         if len(test_ds) == 0:
             print(f'  Empty test set for split {si+1}, skipping.')
             continue

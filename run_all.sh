@@ -5,11 +5,18 @@
 
 set -euo pipefail
 
+# ── 激活 conda 环境（一次，后续直接用 python）────────────────────────────────
+CONDA_ENV="zw@RUL-Predict"
+CONDA_BASE=$(conda info --base 2>/dev/null || echo "$HOME/miniconda3")
+source "${CONDA_BASE}/etc/profile.d/conda.sh"
+conda activate "${CONDA_ENV}"
+PYTHON=$(which python)
+echo "[$(date '+%H:%M:%S')] Python: ${PYTHON}"
+
 TIMESTAMP=$(date +"%y-%m-%d_%H-%M-%S")
 LOG_DIR="log/${TIMESTAMP}"
 mkdir -p "${LOG_DIR}"
 
-CONDA_ENV="zw@RUL-Predict"
 GPUS=(0 1 2 3)
 SLOTS_PER_GPU=2
 TOTAL_SLOTS=$(( ${#GPUS[@]} * SLOTS_PER_GPU ))
@@ -40,7 +47,6 @@ echo "[$(date '+%H:%M:%S')] GPUs: ${GPUS[*]} (${SLOTS_PER_GPU} slots each = ${TO
 echo ""
 
 # ── 调度器 ────────────────────────────────────────────────────────────────────
-# slot_pids[slot] = PID of running job (0 = free)
 declare -a SLOT_PIDS
 declare -a SLOT_GPU
 for (( s=0; s<TOTAL_SLOTS; s++ )); do
@@ -54,7 +60,6 @@ find_free_slot() {
         if [[ $pid -eq 0 ]]; then
             echo $s; return
         fi
-        # check if process finished
         if ! kill -0 "$pid" 2>/dev/null; then
             SLOT_PIDS[$s]=0
             echo $s; return
@@ -83,9 +88,9 @@ for job in "${JOBS[@]}"; do
     echo "[$(date '+%H:%M:%S')] START  gpu=${gpu} slot=${slot}  ${domain}/${task}/${model}"
 
     nohup bash -c "
-        conda run -n '${CONDA_ENV}' python scripts/train.py \
+        ${PYTHON} scripts/train.py \
             --domain '${domain}' --task '${task}' --model '${model}' --gpu '${gpu}' && \
-        conda run -n '${CONDA_ENV}' python scripts/evaluate.py \
+        ${PYTHON} scripts/evaluate.py \
             --domain '${domain}' --task '${task}' --model '${model}' --gpu '${gpu}'
     " > "${log_file}" 2>&1 &
 
@@ -93,7 +98,6 @@ for job in "${JOBS[@]}"; do
     DONE=$(( DONE + 1 ))
 done
 
-# 等待全部完成
 echo ""
 echo "[$(date '+%H:%M:%S')] All ${TOTAL} jobs launched. Waiting for completion..."
 for (( s=0; s<TOTAL_SLOTS; s++ )); do
