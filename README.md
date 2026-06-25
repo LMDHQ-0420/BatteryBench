@@ -20,7 +20,7 @@ Each model is implemented independently per task (no shared heads). Models readi
 | **RNN** | GRU, BiGRU, LSTM, BiLSTM |
 | **CNN** | CNN, MICN |
 | **Transformer** | Transformer, PatchTST, Autoformer, iTransformer, TimeMixer |
-| **Battery-specific** | IC²ML, BatLiNet *(rul only)*, BatteryMFormer *(rul only)*, Severson ElasticNet *(rul only)* |
+| **Battery-specific** | IC²ML, BatLiNet, BatteryMFormer, Severson ElasticNet |
 
 ## Datasets & Evaluation Splits
 
@@ -99,7 +99,7 @@ Domain-specific overrides live in `configs/domains/<domain>.yaml` and are deep-m
 
 ## Adding a New Model
 
-1. Create `src/models/baseline/<task>/<model_name>.py` with a single `nn.Module`:
+1. Create `src/models/<task>/<model_name>.py` alongside `baseline/` with a single `nn.Module`:
 
 ```python
 class MyModel(nn.Module):
@@ -151,14 +151,21 @@ BatteryBench/
 │   ├── evaluate/          rul.py  soh_point.py  soh_traj.py
 │   ├── models/
 │   │   ├── registry.py    get_spec(name, task) → ModelSpec
-│   │   └── baseline/
-│   │       ├── rul/       17 models
-│   │       ├── soh_point/ 14 models
-│   │       └── soh_traj/  14 models
+│   │   ├── rul/
+│   │   │   ├── baseline/  17 models (mlp gru bigru lstm bilstm cnn dlinear patchtst
+│   │   │   │              transformer autoformer itransformer micn timemixer ic2ml
+│   │   │   │              batlinet batterymformer severson)
+│   │   │   └── mymodel.py ← your custom model goes here
+│   │   ├── soh_point/
+│   │   │   ├── baseline/  17 models (same as rul)
+│   │   │   └── mymodel.py
+│   │   └── soh_traj/
+│   │       ├── baseline/  17 models (same as rul)
+│   │       └── mymodel.py
 │   └── train/
 │       ├── rul/           train_base  train_batlinet  train_severson
-│       ├── soh_point/     train_base
-│       └── soh_traj/      train_base
+│       ├── soh_point/     train_base  train_batlinet  train_severson
+│       └── soh_traj/      train_base  train_batlinet  train_severson
 ├── run_all.sh             parallel training across all models / domains / tasks
 └── STRUCTURE.md           detailed architecture and extension guide
 ```

@@ -11,65 +11,73 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Type
 
 # ── RUL models ────────────────────────────────────────────────────────────────
-from src.models.baseline.rul.mlp          import MLP          as RUL_MLP
-from src.models.baseline.rul.gru          import GRU          as RUL_GRU
-from src.models.baseline.rul.bigru        import BiGRU        as RUL_BiGRU
-from src.models.baseline.rul.lstm         import LSTM         as RUL_LSTM
-from src.models.baseline.rul.bilstm       import BiLSTM       as RUL_BiLSTM
-from src.models.baseline.rul.cnn          import CNN          as RUL_CNN
-from src.models.baseline.rul.dlinear      import DLinear      as RUL_DLinear
-from src.models.baseline.rul.patchtst     import PatchTST     as RUL_PatchTST
-from src.models.baseline.rul.transformer  import Transformer  as RUL_Transformer
-from src.models.baseline.rul.autoformer   import Autoformer   as RUL_Autoformer
-from src.models.baseline.rul.itransformer import iTransformer as RUL_iTransformer
-from src.models.baseline.rul.micn         import MICN         as RUL_MICN
-from src.models.baseline.rul.timemixer    import TimeMixer    as RUL_TimeMixer
-from src.models.baseline.rul.ic2ml        import IC2ML        as RUL_IC2ML
-from src.models.baseline.rul.batlinet     import BatLiNet     as RUL_BatLiNet
-from src.models.baseline.rul.batterymformer import BatteryMFormer as RUL_BatteryMFormer
+from src.models.rul.baseline.mlp          import MLP          as RUL_MLP
+from src.models.rul.baseline.gru          import GRU          as RUL_GRU
+from src.models.rul.baseline.bigru        import BiGRU        as RUL_BiGRU
+from src.models.rul.baseline.lstm         import LSTM         as RUL_LSTM
+from src.models.rul.baseline.bilstm       import BiLSTM       as RUL_BiLSTM
+from src.models.rul.baseline.cnn          import CNN          as RUL_CNN
+from src.models.rul.baseline.dlinear      import DLinear      as RUL_DLinear
+from src.models.rul.baseline.patchtst     import PatchTST     as RUL_PatchTST
+from src.models.rul.baseline.transformer  import Transformer  as RUL_Transformer
+from src.models.rul.baseline.autoformer   import Autoformer   as RUL_Autoformer
+from src.models.rul.baseline.itransformer import iTransformer as RUL_iTransformer
+from src.models.rul.baseline.micn         import MICN         as RUL_MICN
+from src.models.rul.baseline.timemixer    import TimeMixer    as RUL_TimeMixer
+from src.models.rul.baseline.ic2ml        import IC2ML        as RUL_IC2ML
+from src.models.rul.baseline.batlinet     import BatLiNet     as RUL_BatLiNet
+from src.models.rul.baseline.batterymformer import BatteryMFormer as RUL_BatteryMFormer
 
 # ── SOH point models ──────────────────────────────────────────────────────────
-from src.models.baseline.soh_point.mlp          import MLP          as SP_MLP
-from src.models.baseline.soh_point.gru          import GRU          as SP_GRU
-from src.models.baseline.soh_point.bigru        import BiGRU        as SP_BiGRU
-from src.models.baseline.soh_point.lstm         import LSTM         as SP_LSTM
-from src.models.baseline.soh_point.bilstm       import BiLSTM       as SP_BiLSTM
-from src.models.baseline.soh_point.cnn          import CNN          as SP_CNN
-from src.models.baseline.soh_point.dlinear      import DLinear      as SP_DLinear
-from src.models.baseline.soh_point.patchtst     import PatchTST     as SP_PatchTST
-from src.models.baseline.soh_point.transformer  import Transformer  as SP_Transformer
-from src.models.baseline.soh_point.autoformer   import Autoformer   as SP_Autoformer
-from src.models.baseline.soh_point.itransformer import iTransformer as SP_iTransformer
-from src.models.baseline.soh_point.micn         import MICN         as SP_MICN
-from src.models.baseline.soh_point.timemixer    import TimeMixer    as SP_TimeMixer
-from src.models.baseline.soh_point.ic2ml        import IC2ML        as SP_IC2ML
+from src.models.soh_point.baseline.mlp          import MLP          as SP_MLP
+from src.models.soh_point.baseline.gru          import GRU          as SP_GRU
+from src.models.soh_point.baseline.bigru        import BiGRU        as SP_BiGRU
+from src.models.soh_point.baseline.lstm         import LSTM         as SP_LSTM
+from src.models.soh_point.baseline.bilstm       import BiLSTM       as SP_BiLSTM
+from src.models.soh_point.baseline.cnn          import CNN          as SP_CNN
+from src.models.soh_point.baseline.dlinear      import DLinear      as SP_DLinear
+from src.models.soh_point.baseline.patchtst     import PatchTST     as SP_PatchTST
+from src.models.soh_point.baseline.transformer  import Transformer  as SP_Transformer
+from src.models.soh_point.baseline.autoformer   import Autoformer   as SP_Autoformer
+from src.models.soh_point.baseline.itransformer import iTransformer as SP_iTransformer
+from src.models.soh_point.baseline.micn         import MICN         as SP_MICN
+from src.models.soh_point.baseline.timemixer    import TimeMixer    as SP_TimeMixer
+from src.models.soh_point.baseline.ic2ml        import IC2ML        as SP_IC2ML
+from src.models.soh_point.baseline.batlinet     import BatLiNet     as SP_BatLiNet
+from src.models.soh_point.baseline.batterymformer import BatteryMFormer as SP_BatteryMFormer
 
 # ── SOH traj models ───────────────────────────────────────────────────────────
-from src.models.baseline.soh_traj.mlp          import MLP          as ST_MLP
-from src.models.baseline.soh_traj.gru          import GRU          as ST_GRU
-from src.models.baseline.soh_traj.bigru        import BiGRU        as ST_BiGRU
-from src.models.baseline.soh_traj.lstm         import LSTM         as ST_LSTM
-from src.models.baseline.soh_traj.bilstm       import BiLSTM       as ST_BiLSTM
-from src.models.baseline.soh_traj.cnn          import CNN          as ST_CNN
-from src.models.baseline.soh_traj.dlinear      import DLinear      as ST_DLinear
-from src.models.baseline.soh_traj.patchtst     import PatchTST     as ST_PatchTST
-from src.models.baseline.soh_traj.transformer  import Transformer  as ST_Transformer
-from src.models.baseline.soh_traj.autoformer   import Autoformer   as ST_Autoformer
-from src.models.baseline.soh_traj.itransformer import iTransformer as ST_iTransformer
-from src.models.baseline.soh_traj.micn         import MICN         as ST_MICN
-from src.models.baseline.soh_traj.timemixer    import TimeMixer    as ST_TimeMixer
-from src.models.baseline.soh_traj.ic2ml        import IC2ML        as ST_IC2ML
+from src.models.soh_traj.baseline.mlp          import MLP          as ST_MLP
+from src.models.soh_traj.baseline.gru          import GRU          as ST_GRU
+from src.models.soh_traj.baseline.bigru        import BiGRU        as ST_BiGRU
+from src.models.soh_traj.baseline.lstm         import LSTM         as ST_LSTM
+from src.models.soh_traj.baseline.bilstm       import BiLSTM       as ST_BiLSTM
+from src.models.soh_traj.baseline.cnn          import CNN          as ST_CNN
+from src.models.soh_traj.baseline.dlinear      import DLinear      as ST_DLinear
+from src.models.soh_traj.baseline.patchtst     import PatchTST     as ST_PatchTST
+from src.models.soh_traj.baseline.transformer  import Transformer  as ST_Transformer
+from src.models.soh_traj.baseline.autoformer   import Autoformer   as ST_Autoformer
+from src.models.soh_traj.baseline.itransformer import iTransformer as ST_iTransformer
+from src.models.soh_traj.baseline.micn         import MICN         as ST_MICN
+from src.models.soh_traj.baseline.timemixer    import TimeMixer    as ST_TimeMixer
+from src.models.soh_traj.baseline.ic2ml        import IC2ML        as ST_IC2ML
+from src.models.soh_traj.baseline.batlinet     import BatLiNet     as ST_BatLiNet
+from src.models.soh_traj.baseline.batterymformer import BatteryMFormer as ST_BatteryMFormer
 
 # ── Datasets ──────────────────────────────────────────────────────────────────
 from src.data.dataset              import BatteryDataset
 from src.data.dataset_batterymformer import BatteryMFormerDataset
 
 # ── Train functions ───────────────────────────────────────────────────────────
-from src.train.rul.train_base     import train as _rul_base
-from src.train.rul.train_batlinet import train as _rul_batlinet
-from src.train.rul.train_severson import train as _rul_severson
-from src.train.soh_point.train_base import train as _sp_base
-from src.train.soh_traj.train_base  import train as _st_base
+from src.train.rul.train_base       import train as _rul_base
+from src.train.rul.train_batlinet   import train as _rul_batlinet
+from src.train.rul.train_severson   import train as _rul_severson
+from src.train.soh_point.train_base     import train as _sp_base
+from src.train.soh_point.train_batlinet import train as _sp_batlinet
+from src.train.soh_point.train_severson import train as _sp_severson
+from src.train.soh_traj.train_base      import train as _st_base
+from src.train.soh_traj.train_batlinet  import train as _st_batlinet
+from src.train.soh_traj.train_severson  import train as _st_severson
 
 
 @dataclass
@@ -139,6 +147,9 @@ _REGISTRY: dict[str, dict[str, ModelSpec]] = {
         ),
     },
     'soh_point': {
+        'severson': ModelSpec(
+            build_fn=None, dataset_cls=BatteryDataset, train_fn=_sp_severson,
+        ),
         'mlp': ModelSpec(
             build_fn=lambda cfg: SP_MLP(cfg), dataset_cls=BatteryDataset, train_fn=_sp_base,
         ),
@@ -181,8 +192,19 @@ _REGISTRY: dict[str, dict[str, ModelSpec]] = {
         'ic2ml': ModelSpec(
             build_fn=lambda cfg: SP_IC2ML(cfg), dataset_cls=BatteryDataset, train_fn=_sp_base,
         ),
+        'batlinet': ModelSpec(
+            build_fn=lambda cfg: SP_BatLiNet(cfg), dataset_cls=BatteryDataset,
+            train_fn=_sp_batlinet, batch_size_cap=8,
+        ),
+        'batterymformer': ModelSpec(
+            build_fn=lambda cfg: SP_BatteryMFormer(cfg), dataset_cls=BatteryMFormerDataset,
+            train_fn=_sp_base,
+        ),
     },
     'soh_traj': {
+        'severson': ModelSpec(
+            build_fn=None, dataset_cls=BatteryDataset, train_fn=_st_severson,
+        ),
         'mlp': ModelSpec(
             build_fn=lambda cfg: ST_MLP(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
         ),
@@ -224,6 +246,14 @@ _REGISTRY: dict[str, dict[str, ModelSpec]] = {
         ),
         'ic2ml': ModelSpec(
             build_fn=lambda cfg: ST_IC2ML(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+        ),
+        'batlinet': ModelSpec(
+            build_fn=lambda cfg: ST_BatLiNet(cfg), dataset_cls=BatteryDataset,
+            train_fn=_st_batlinet, batch_size_cap=8,
+        ),
+        'batterymformer': ModelSpec(
+            build_fn=lambda cfg: ST_BatteryMFormer(cfg), dataset_cls=BatteryMFormerDataset,
+            train_fn=_st_base,
         ),
     },
 }
