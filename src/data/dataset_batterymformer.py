@@ -243,10 +243,13 @@ class BatteryMFormerDataset(Dataset):
             if result is None:
                 continue
             X_seq, soh_seq, rul, cell_id, aging_text = result
+            soh_t = torch.from_numpy(soh_seq)
             self.samples.append({
                 'X':          torch.from_numpy(X_seq),
-                'soh':        torch.from_numpy(soh_seq),
+                'soh':        soh_t,
                 'rul':        torch.tensor(rul, dtype=torch.float32),
+                'soh_point':  soh_t[-1:],        # (1,) — SOH at observation cycle
+                'soh_traj':   soh_t,              # (S,) — full SOH sequence
                 'cell_id':    cell_id,
                 'aging_text': aging_text,
             })
