@@ -103,20 +103,26 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
         splits = all_splits
         split_offset = 0
 
-    # Reuse already-loaded samples to avoid re-reading from disk for each split
-    def _slice_ds(base_ds, indices):
-        import copy
-        ds = copy.copy(base_ds)
-        ds._samples = [base_ds._all_samples[i] for i in indices
-                       if i < len(base_ds._all_samples)]
-        return ds
+    import copy
+    use_slice = (spec.dataset_cls is BatteryDataset)
+
+    def _make_ds(indices, use_log=False):
+        if use_slice:
+            ds = copy.copy(ds_for_splits)
+            ds._samples = [ds_for_splits._all_samples[i] for i in indices
+                           if i < len(ds_for_splits._all_samples)]
+            ds.use_log_rul = use_log
+            return ds
+        return spec.dataset_cls(pkl_dir, n_cycles=n_cycles, n_grid=n_grid,
+                                soh_threshold=soh_threshold,
+                                split_indices=indices, use_log_rul=use_log)
 
     if spec.build_fn is None:
         for i, split in enumerate(splits):
             si = i + split_offset + 1
             print(f'\n--- Split {si}/{len(all_splits)} ---')
-            train_ds = _slice_ds(ds_for_splits, split['train'])
-            test_ds  = _slice_ds(ds_for_splits, split['test'])
+            train_ds = _make_ds(split['train'])
+            test_ds  = _make_ds(split['test'])
             if len(train_ds) == 0 or len(test_ds) == 0:
                 print('  Skipping empty split.')
                 continue
@@ -127,10 +133,8 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
     for i, split in enumerate(splits):
         si = i + split_offset + 1
         print(f'\n--- Split {si}/{len(all_splits)} ---')
-        train_ds = _slice_ds(ds_for_splits, split['train'])
-        val_ds   = _slice_ds(ds_for_splits, split['val'])
-        train_ds.use_log_rul = use_log_rul
-        val_ds.use_log_rul   = use_log_rul
+        train_ds = _make_ds(split['train'], use_log=use_log_rul)
+        val_ds   = _make_ds(split['val'],   use_log=use_log_rul)
         print(f'  train={len(train_ds)}  val={len(val_ds)}')
         if len(train_ds) == 0 or len(val_ds) == 0:
             print('  Skipping empty split.')

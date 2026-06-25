@@ -173,11 +173,18 @@ def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
     all_splits = make_splits(ds_for_splits, cfg)
 
     import copy
-    def _slice_ds(base_ds, indices):
-        ds = copy.copy(base_ds)
-        ds._samples = [base_ds._all_samples[i] for i in indices
-                       if i < len(base_ds._all_samples)]
-        return ds
+    use_slice = (spec.dataset_cls is BatteryDataset)
+
+    def _make_test_ds(indices):
+        if use_slice:
+            ds = copy.copy(ds_for_splits)
+            ds._samples = [ds_for_splits._all_samples[i] for i in indices
+                           if i < len(ds_for_splits._all_samples)]
+            ds.use_log_rul = use_log_rul
+            return ds
+        return spec.dataset_cls(pkl_dir, n_cycles=n_cycles, n_grid=n_grid,
+                                soh_threshold=soh_threshold,
+                                split_indices=indices, use_log_rul=use_log_rul)
 
     all_metrics = []
     for ckpt_path in ckpt_files:
@@ -191,8 +198,7 @@ def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
             continue
 
         split   = all_splits[si]
-        test_ds = _slice_ds(ds_for_splits, split['test'])
-        test_ds.use_log_rul = use_log_rul
+        test_ds = _make_test_ds(split['test'])
         if len(test_ds) == 0:
             print(f'  Empty test set for split {si+1}, skipping.')
             continue
