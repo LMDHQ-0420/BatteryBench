@@ -26,14 +26,14 @@ def evaluate(
 
     with torch.no_grad():
         for batch in loader:
-            true_traj = batch['soh_traj'][:, :n_future].numpy()  # (B, n_future)
+            true_traj = batch['soh_traj'][:, :n_future].numpy()  # (B, T) T<=n_future
             b = {k: v.to(device) if isinstance(v, torch.Tensor) else v
                  for k, v in batch.items()}
             out = model(b)
             pred = (out[0] if isinstance(out, (tuple, list)) else out).cpu().numpy()  # (B, n_future)
-
-            preds.append(pred)
-            trues.append(true_traj)
+            t = min(pred.shape[1], true_traj.shape[1])
+            preds.append(pred[:, :t])
+            trues.append(true_traj[:, :t])
 
     preds = np.concatenate(preds, axis=0).flatten().astype(np.float64)
     trues = np.concatenate(trues, axis=0).flatten().astype(np.float64)

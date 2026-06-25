@@ -69,7 +69,8 @@ class BatLiNet(nn.Module):
         B = Q.shape[0]
 
         pred_intra = self._intra_pred(Q)
-        loss_intra = F.mse_loss(pred_intra, y)
+        t = min(pred_intra.shape[1], y.shape[1])
+        loss_intra = F.mse_loss(pred_intra[:, :t], y[:, :t])
 
         if B < 2:
             return loss_intra
@@ -95,7 +96,7 @@ class BatLiNet(nn.Module):
         dy = y[idx_i] - y[idx_j]   # (P, n_future)
 
         pred_inter = self._inter_pred(dQ)
-        loss_inter = F.mse_loss(pred_inter, dy)
+        loss_inter = F.mse_loss(pred_inter[:, :t], dy[:, :t])
 
         return loss_intra + self.lam * loss_inter
 

@@ -27,8 +27,9 @@ def train_one_epoch(model, loader, optimizer, device, n_future=100):
         b = _to_device(batch, device)
         out = model(b)
         pred = out[0] if isinstance(out, (tuple, list)) else out  # (B, n_future)
-        target = b['soh_traj'][:, :n_future]                      # (B, n_future)
-        loss = criterion(pred, target)
+        target = b['soh_traj'][:, :n_future]                      # (B, T) T<=n_future
+        t = min(pred.shape[1], target.shape[1])
+        loss = criterion(pred[:, :t], target[:, :t])
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
@@ -46,8 +47,10 @@ def validate(model, loader, device, n_future=100):
             b = _to_device(batch, device)
             out = model(b)
             pred = out[0] if isinstance(out, (tuple, list)) else out
-            preds.append(pred.cpu().numpy())
-            trues.append(b['soh_traj'][:, :n_future].cpu().numpy())
+            target = b['soh_traj'][:, :n_future]
+            t = min(pred.shape[1], target.shape[1])
+            preds.append(pred[:, :t].cpu().numpy())
+            trues.append(target[:, :t].cpu().numpy())
 
     preds = np.concatenate(preds, axis=0)
     trues = np.concatenate(trues, axis=0)
