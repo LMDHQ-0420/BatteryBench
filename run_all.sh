@@ -82,12 +82,12 @@ for job in "${JOBS[@]}"; do
 
     echo "[$(date '+%H:%M:%S')] START  gpu=${gpu} slot=${slot}  ${domain}/${task}/${model}"
 
-    nohup conda run -n "${CONDA_ENV}" python scripts/train.py \
-        --domain "${domain}" \
-        --task   "${task}"   \
-        --model  "${model}"  \
-        --gpu    "${gpu}"    \
-        > "${log_file}" 2>&1 &
+    nohup bash -c "
+        conda run -n '${CONDA_ENV}' python scripts/train.py \
+            --domain '${domain}' --task '${task}' --model '${model}' --gpu '${gpu}' && \
+        conda run -n '${CONDA_ENV}' python scripts/evaluate.py \
+            --domain '${domain}' --task '${task}' --model '${model}' --gpu '${gpu}'
+    " > "${log_file}" 2>&1 &
 
     SLOT_PIDS[$slot]=$!
     DONE=$(( DONE + 1 ))

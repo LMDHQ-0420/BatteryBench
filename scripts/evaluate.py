@@ -162,7 +162,7 @@ def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
     if checkpoint:
         ckpt_files = [checkpoint]
     else:
-        pattern = os.path.join(model_save_dir, 'split*_best.pt')
+        pattern = os.path.join(model_save_dir, 'split*.pt')
         ckpt_files = sorted(glob.glob(pattern))
         if not ckpt_files:
             print(f'  No checkpoints found at {pattern}. Run scripts/train.py first.')
@@ -176,7 +176,7 @@ def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
     for ckpt_path in ckpt_files:
         basename = os.path.basename(ckpt_path)
         try:
-            si = int(basename.replace('split', '').replace('_best.pt', '')) - 1
+            si = int(basename.replace('split', '').replace('.pt', '')) - 1
         except ValueError:
             si = 0
         if si >= len(all_splits):

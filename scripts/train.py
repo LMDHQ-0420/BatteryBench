@@ -137,7 +137,7 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
         train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,  num_workers=0)
         val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False, num_workers=0)
         model     = spec.build_fn(cfg).to(device)
-        save_path = os.path.join(model_save_dir, f'split{si}_best.pt')
+        save_path = os.path.join(model_save_dir, f'split{si}.pt')
         spec.train_fn(model, train_loader, val_loader, cfg, save_path, device)
         print(f'  Checkpoint → {save_path}')
 
