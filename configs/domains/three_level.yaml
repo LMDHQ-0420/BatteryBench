@@ -1,11 +1,16 @@
 data:
-  # 训练池：481 颗，按 cathode_material 分层 8% 作 val，其余 train
+  # 训练池：batch 1-7,10 (HUST) + b1-b3 (MATR) + 其他域，按 cathode_material 分层 8% 作 val
   split_strategy: three_level
   val_ratio: 0.08
 
+  # batch 8/9 (HUST) 和 b4 (MATR) 作为 L1 测试集，从训练中排除
+  exclude_pattern:
+    - "HUST_[89]-*.pkl"
+    - "MATR_b4*.pkl"
+
   train_dirs:
-    - data/preprocessed/HUST          # LFP, batch 1-7,10
-    - data/preprocessed/MATR          # LFP, b1-b3
+    - data/preprocessed/HUST          # LFP, batch 1-7,10 (batch 8/9 由 exclude_pattern 排除)
+    - data/preprocessed/MATR          # LFP, b1-b3 (b4 在 test_sets 里单独列出)
     - data/preprocessed/RWTH          # NMC
     - data/preprocessed/SDU           # NMC
     - data/preprocessed/Stanford      # NMC
@@ -16,9 +21,11 @@ data:
   # 固定测试集，完全隔离，不参与训练和验证
   # level: L1=同化学跨数据集, L2=锂离子跨正极, L3=跨离子体系
   test_sets:
-    - dir: data/preprocessed/HUST_batch8    # LFP, batch-8
+    - dir: data/preprocessed/HUST
+      pattern: "HUST_[89]-*.pkl"      # batch 8 & 9
       level: L1
-    - dir: data/preprocessed/MATR_b4       # LFP, b4
+    - dir: data/preprocessed/MATR
+      pattern: "MATR_b4*.pkl"         # batch 4
       level: L1
     - dir: data/preprocessed/CALCE         # LCO
       level: L2

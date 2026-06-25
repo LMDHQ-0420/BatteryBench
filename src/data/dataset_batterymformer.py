@@ -23,6 +23,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from src.utils import scan_pkl_dir, compute_soh_series, compute_rul, build_q_matrix
+from src.data.dataset import SOH_TRAJ_LEN
 
 CACHE_DIR = 'data/cache_batterymformer'
 L_DEFAULT = 300
@@ -230,29 +231,48 @@ class BatteryMFormerDataset(Dataset):
         soh_threshold: float = 0.80,
         **kwargs,   # absorb unused args passed by train.py (n_grid, task, etc.)
     ):
-        if isinstance(pkl_dirs, str):
-            pkl_dirs = [pkl_dirs]
+        pkl_files = kwargs.get('pkl_files', None)
+
+        if pkl_files is not None:
+            all_pkls = list(pkl_files)
+        else:
+            if isinstance(pkl_dirs, str):
+                pkl_dirs = [pkl_dirs]
+            all_pkls = []
+            for d in pkl_dirs:
+                all_pkls.extend(scan_pkl_dir(d))
 
         self.samples = []
-        all_pkls = []
-        for d in pkl_dirs:
-            all_pkls.extend(scan_pkl_dir(d))
-
         for pkl_path in tqdm(all_pkls, desc='Loading batteries'):
             result = _load_or_compute_mv(pkl_path, n_cycles, L, soh_threshold)
             if result is None:
                 continue
             X_seq, soh_seq, rul, cell_id, aging_text = result
             soh_t = torch.from_numpy(soh_seq)
+
+            # soh_traj: zero-pad to SOH_TRAJ_LEN, record valid length
+            full_len = len(soh_seq)
+            traj_len = min(full_len, SOH_TRAJ_LEN)
+            soh_traj_np = np.zeros(SOH_TRAJ_LEN, dtype=np.float32)
+            soh_traj_np[:traj_len] = np.clip(soh_seq[:traj_len], 0.0, 1.0)
+
             self.samples.append({
-                'X':          torch.from_numpy(X_seq),
-                'soh':        soh_t,
-                'rul':        torch.tensor(rul, dtype=torch.float32),
-                'soh_point':  soh_t[-1:],        # (1,) — SOH at observation cycle
-                'soh_traj':   soh_t,              # (S,) — full SOH sequence
-                'cell_id':    cell_id,
-                'aging_text': aging_text,
+                'X':            torch.from_numpy(X_seq),
+                'soh':          soh_t,
+                'rul':          torch.tensor(rul, dtype=torch.float32),
+                'soh_point':    soh_t[-1:],
+                'soh_traj':     torch.from_numpy(soh_traj_np),
+                'soh_traj_len': torch.tensor(traj_len, dtype=torch.long),
+                'cell_id':      cell_id,
+                'aging_text':   aging_text,
             })
+
+        self._all_samples = self.samples
+
+        split_indices = kwargs.get('split_indices', None)
+        if split_indices is not None:
+            self.samples = [self._all_samples[i] for i in split_indices
+                            if i < len(self._all_samples)]
 
     def __len__(self):
         return len(self.samples)

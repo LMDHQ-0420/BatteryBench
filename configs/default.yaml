@@ -13,7 +13,7 @@ train:
 
 data:
   task: rul                # rul | soh_point | soh_traj
-  n_future: 100            # soh_traj 预测步数
+  n_future: 5000            # soh_traj 预测步数（完整退化轨迹，zero-pad 到此长度）
   soh_threshold: 0.80
   n_cycles: 100
   n_grid: 200

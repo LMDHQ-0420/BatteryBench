@@ -64,13 +64,18 @@ class BatLiNet(nn.Module):
         return self.head(self.encoder(dQ))  # (P, n_future)
 
     def compute_loss(self, batch, device):
-        Q = batch['Q'].to(device)
-        y = batch['soh_traj'][:, :self.n_future].to(device)   # (B, n_future)
-        B = Q.shape[0]
+        Q    = batch['Q'].to(device)
+        y    = batch['soh_traj'][:, :self.n_future].to(device)   # (B, n_future)
+        lens = batch['soh_traj_len'].to(device)                  # (B,)
+        B    = Q.shape[0]
+
+        # build mask for valid positions
+        mask = torch.zeros_like(y, dtype=torch.bool)
+        for i, l in enumerate(lens):
+            mask[i, :l] = True
 
         pred_intra = self._intra_pred(Q)
-        t = min(pred_intra.shape[1], y.shape[1])
-        loss_intra = F.mse_loss(pred_intra[:, :t], y[:, :t])
+        loss_intra = F.mse_loss(pred_intra[mask], y[mask])
 
         if B < 2:
             return loss_intra
@@ -92,11 +97,12 @@ class BatLiNet(nn.Module):
         idx_i = torch.tensor(all_i, device=device)
         idx_j = torch.tensor(all_j, device=device)
 
-        dQ = Q[idx_i] - Q[idx_j]
-        dy = y[idx_i] - y[idx_j]   # (P, n_future)
+        dQ   = Q[idx_i] - Q[idx_j]
+        dy   = y[idx_i] - y[idx_j]           # (P, n_future)
+        dmask = mask[idx_i] & mask[idx_j]    # (P, n_future)
 
         pred_inter = self._inter_pred(dQ)
-        loss_inter = F.mse_loss(pred_inter[:, :t], dy[:, :t])
+        loss_inter = F.mse_loss(pred_inter[dmask], dy[dmask])
 
         return loss_intra + self.lam * loss_inter
 

@@ -82,13 +82,23 @@ def _eval_three_level(model_name: str, task: str, cfg: dict,
     all_results = []
 
     for ts in test_sets:
-        ts_dir  = ts['dir']
-        level   = ts['level']
-        ds_name = os.path.basename(ts_dir)
-
-        test_ds = spec.dataset_cls(ts_dir, n_cycles=n_cycles, n_grid=n_grid,
-                                   soh_threshold=soh_threshold,
-                                   use_log_rul=use_log_rul)
+        ts_dir   = ts['dir']
+        level    = ts['level']
+        pattern  = ts.get('pattern', None)
+        ds_name  = os.path.basename(ts_dir)
+        if pattern:
+            import fnmatch
+            all_files = sorted(glob.glob(os.path.join(ts_dir, '*.pkl')))
+            matched   = [f for f in all_files if fnmatch.fnmatch(os.path.basename(f), pattern)]
+            ds_name   = f'{os.path.basename(ts_dir)}[{pattern}]'
+            test_ds   = spec.dataset_cls(ts_dir, n_cycles=n_cycles, n_grid=n_grid,
+                                         soh_threshold=soh_threshold,
+                                         use_log_rul=use_log_rul,
+                                         pkl_files=matched)
+        else:
+            test_ds = spec.dataset_cls(ts_dir, n_cycles=n_cycles, n_grid=n_grid,
+                                       soh_threshold=soh_threshold,
+                                       use_log_rul=use_log_rul)
         n_cells = len(test_ds)
         if n_cells == 0:
             print(f'  [{level}] {ds_name}: empty, skipping.')
@@ -153,7 +163,7 @@ def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
     n_grid        = d_cfg.get('n_grid',   cfg['model'].get('n_grid', 200))
     soh_threshold = d_cfg.get('soh_threshold', 0.80)
     use_log_rul   = t_cfg.get('use_log_rul', False) and task == 'rul'
-    n_future      = n_cycles if task == 'soh_traj' else d_cfg.get('n_future', 100)
+    n_future      = d_cfg.get('n_future', 5000)
     batch_size    = t_cfg.get('batch_size', 32)
     evaluate_fn   = _get_evaluate_fn(task)
 
@@ -175,16 +185,23 @@ def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
     import copy
     use_slice = (spec.dataset_cls is BatteryDataset)
 
+    if not use_slice:
+        full_ds = spec.dataset_cls(pkl_dir, n_cycles=n_cycles, n_grid=n_grid,
+                                   soh_threshold=soh_threshold)
+    else:
+        full_ds = ds_for_splits
+
     def _make_test_ds(indices):
-        if use_slice:
-            ds = copy.copy(ds_for_splits)
-            ds._samples = [ds_for_splits._all_samples[i] for i in indices
-                           if i < len(ds_for_splits._all_samples)]
+        ds = copy.copy(full_ds)
+        sliced = [full_ds._all_samples[i] for i in indices
+                  if i < len(full_ds._all_samples)]
+        if hasattr(full_ds, '_samples'):
+            ds._samples = sliced
+        else:
+            ds.samples = sliced
+        if hasattr(ds, 'use_log_rul'):
             ds.use_log_rul = use_log_rul
-            return ds
-        return spec.dataset_cls(pkl_dir, n_cycles=n_cycles, n_grid=n_grid,
-                                soh_threshold=soh_threshold,
-                                split_indices=indices, use_log_rul=use_log_rul)
+        return ds
 
     all_metrics = []
     for ckpt_path in ckpt_files:

@@ -1,8 +1,5 @@
 # Data
-data/raw/
-data/pkl/
-data/cache/
-data/cache_batterymformer/
+data/
 
 # Results and logs
 results/

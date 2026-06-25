@@ -19,6 +19,7 @@ scripts/train.py — 训练单个模型
 
 import os
 import sys
+import json
 import argparse
 
 import numpy as np
@@ -45,8 +46,6 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
     n_grid        = d_cfg.get('n_grid',   cfg['model'].get('n_grid', 200))
     soh_threshold = d_cfg.get('soh_threshold', 0.80)
     use_log_rul   = t_cfg.get('use_log_rul', False) and task == 'rul'
-    if task == 'soh_traj':
-        d_cfg['n_future'] = n_cycles  # soh_traj output length == observation window
     batch_size    = t_cfg.get('batch_size', 32)
     if spec.batch_size_cap:
         batch_size = min(batch_size, spec.batch_size_cap)
@@ -56,7 +55,8 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
 
     # ── three_level: 固定 train/val，无随机 test ──────────────────────────────
     if strategy == 'three_level':
-        train_dirs = d_cfg.get('train_dirs', [])
+        train_dirs       = d_cfg.get('train_dirs', [])
+        exclude_pattern  = d_cfg.get('exclude_pattern', None)
         all_splits = make_splits(None, cfg, seed=0)
         split = all_splits[0]
         print(f'  train={len(split["train"])}  val={len(split["val"])}')
@@ -64,20 +64,34 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
         if spec.build_fn is None:
             train_ds = spec.dataset_cls(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
                                         soh_threshold=soh_threshold,
-                                        split_indices=split['train'])
+                                        split_indices=split['train'],
+                                        exclude_pattern=exclude_pattern)
             val_ds   = spec.dataset_cls(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
                                         soh_threshold=soh_threshold,
-                                        split_indices=split['val'])
+                                        split_indices=split['val'],
+                                        exclude_pattern=exclude_pattern)
             metrics = spec.train_fn(train_ds, val_ds)
             _print_metrics(metrics)
+            result_path = os.path.join(model_save_dir, 'results.json')
+            keys = list(metrics.keys())
+            with open(result_path, 'w') as f:
+                json.dump({
+                    'domain': domain, 'task': task, 'model': model_name,
+                    'splits': [metrics],
+                    'mean': {k: float(metrics[k]) for k in keys},
+                    'std':  {k: 0.0 for k in keys},
+                }, f, indent=2)
+            print(f'  Saved → {result_path}')
             return
 
         train_ds = spec.dataset_cls(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
                                     soh_threshold=soh_threshold,
-                                    split_indices=split['train'], use_log_rul=use_log_rul)
+                                    split_indices=split['train'], use_log_rul=use_log_rul,
+                                    exclude_pattern=exclude_pattern)
         val_ds   = spec.dataset_cls(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
                                     soh_threshold=soh_threshold,
-                                    split_indices=split['val'],   use_log_rul=use_log_rul)
+                                    split_indices=split['val'],   use_log_rul=use_log_rul,
+                                    exclude_pattern=exclude_pattern)
         if len(train_ds) == 0 or len(val_ds) == 0:
             print('  Skipping: empty train or val set.')
             return
@@ -108,18 +122,27 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
     import copy
     use_slice = (spec.dataset_cls is BatteryDataset)
 
+    if not use_slice:
+        # batterymformer 等非 BatteryDataset：预先加载一次，用 _all_samples 切片
+        full_ds = spec.dataset_cls(pkl_dir, n_cycles=n_cycles, n_grid=n_grid,
+                                   soh_threshold=soh_threshold)
+    else:
+        full_ds = ds_for_splits
+
     def _make_ds(indices, use_log=False):
-        if use_slice:
-            ds = copy.copy(ds_for_splits)
-            ds._samples = [ds_for_splits._all_samples[i] for i in indices
-                           if i < len(ds_for_splits._all_samples)]
+        ds = copy.copy(full_ds)
+        sliced = [full_ds._all_samples[i] for i in indices
+                  if i < len(full_ds._all_samples)]
+        if hasattr(full_ds, '_samples'):
+            ds._samples = sliced   # BatteryDataset
+        else:
+            ds.samples = sliced    # BatteryMFormerDataset
+        if hasattr(ds, 'use_log_rul'):
             ds.use_log_rul = use_log
-            return ds
-        return spec.dataset_cls(pkl_dir, n_cycles=n_cycles, n_grid=n_grid,
-                                soh_threshold=soh_threshold,
-                                split_indices=indices, use_log_rul=use_log)
+        return ds
 
     if spec.build_fn is None:
+        all_metrics = []
         for i, split in enumerate(splits):
             si = i + split_offset + 1
             print(f'\n--- Split {si}/{len(all_splits)} ---')
@@ -130,6 +153,19 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
                 continue
             metrics = spec.train_fn(train_ds, test_ds)
             _print_metrics(metrics)
+            all_metrics.append(metrics)
+        if all_metrics:
+            import json
+            keys = list(all_metrics[0].keys())
+            result_path = os.path.join(model_save_dir, 'results.json')
+            with open(result_path, 'w') as f:
+                json.dump({
+                    'domain': domain, 'task': task, 'model': model_name,
+                    'splits': all_metrics,
+                    'mean': {k: float(np.mean([m[k] for m in all_metrics])) for k in keys},
+                    'std':  {k: float(np.std( [m[k] for m in all_metrics])) for k in keys},
+                }, f, indent=2)
+            print(f'  Saved → {result_path}')
         return
 
     for i, split in enumerate(splits):

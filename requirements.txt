@@ -4,3 +4,8 @@ scikit-learn
 matplotlib
 pyyaml
 tqdm
+pandas
+openpyxl
+h5py
+numba
+torch

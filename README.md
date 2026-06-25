@@ -50,7 +50,7 @@ Fixed train pool; three held-out test tiers:
 | Task | Metrics |
 |------|---------|
 | `rul` | MAE, MSE, RMSE, MAPE, 15%-Acc |
-| `soh_point` | MAE, MSE, RMSE, MAPE, 15%-Acc |
+| `soh_point` | MAE, MSE, RMSE, MAPE |
 | `soh_traj` | MAE, MSE, RMSE, MAPE |
 
 ## Data Download

@@ -1,6 +1,6 @@
 """
 evaluate/soh_point.py — SOH 单点估计评估
-输出: mae, mse, rmse, mape, acc15
+输出: mae, mse, rmse, mape  (0-1 范围，无 acc15)
 """
 
 import numpy as np
@@ -15,12 +15,6 @@ def evaluate(
     loader: DataLoader,
     device: str,
 ) -> Dict[str, float]:
-    """
-    评估 SOH 单点估计模型。
-    返回 {'mae', 'mse', 'rmse', 'mape', 'acc15'}。
-    acc15: 相对误差 ≤ 15% 的样本占比 (%)。
-    SOH 值域 [0, 1]，mape 基于真实值计算。
-    """
     model.eval()
     preds, trues = [], []
 
@@ -44,7 +38,6 @@ def evaluate(
 
     mask = trues > 1e-6
     rel_err = np.abs(preds[mask] - trues[mask]) / trues[mask]
-    mape  = float(np.mean(rel_err) * 100) if mask.any() else float('nan')
-    acc15 = float(np.mean(rel_err <= 0.15) * 100) if mask.any() else float('nan')
+    mape = float(np.mean(rel_err)) if mask.any() else float('nan')
 
-    return {'mae': mae, 'mse': mse, 'rmse': rmse, 'mape': mape, 'acc15': acc15}
+    return {'mae': mae, 'mse': mse, 'rmse': rmse, 'mape': mape}

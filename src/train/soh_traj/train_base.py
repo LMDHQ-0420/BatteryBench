@@ -2,13 +2,14 @@
 train/soh_traj/train_base.py — SOH 退化轨迹预测标准训练流程
 适用: mlp, gru, bigru, lstm, bilstm, cnn, dlinear, patchtst,
       autoformer, itransformer, transformer, micn, batterymformer
-目标: batch['soh_traj'] shape (B, n_future)，MSE 损失。
+目标: batch['soh_traj'] shape (B, n_future)，用 soh_traj_len mask 的 MSE 损失。
 """
 
 import os
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 
@@ -17,19 +18,33 @@ def _to_device(batch, device):
             for k, v in batch.items()}
 
 
-def train_one_epoch(model, loader, optimizer, device, n_future=100):
+def _masked_mse(pred, target, lens):
+    """MSE only over valid (non-padded) positions."""
+    mask = torch.zeros_like(target, dtype=torch.bool)
+    for i, l in enumerate(lens):
+        mask[i, :l] = True
+    return F.mse_loss(pred[mask], target[mask])
+
+
+def _masked_mae(pred, target, lens):
+    mask = torch.zeros_like(target, dtype=torch.bool)
+    for i, l in enumerate(lens):
+        mask[i, :l] = True
+    return float(torch.mean(torch.abs(pred[mask] - target[mask])).item())
+
+
+def train_one_epoch(model, loader, optimizer, device, n_future=5000):
     model.train()
-    criterion = nn.MSELoss()
     total_loss = 0.0
 
     for batch in loader:
         optimizer.zero_grad()
         b = _to_device(batch, device)
         out = model(b)
-        pred = out[0] if isinstance(out, (tuple, list)) else out  # (B, n_future)
-        target = b['soh_traj'][:, :n_future]                      # (B, T) T<=n_future
-        t = min(pred.shape[1], target.shape[1])
-        loss = criterion(pred[:, :t], target[:, :t])
+        pred   = out[0] if isinstance(out, (tuple, list)) else out  # (B, n_future)
+        target = b['soh_traj'][:, :n_future]                        # (B, n_future)
+        lens   = b['soh_traj_len']                                   # (B,)
+        loss = _masked_mse(pred, target, lens)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
@@ -38,23 +53,23 @@ def train_one_epoch(model, loader, optimizer, device, n_future=100):
     return total_loss / max(len(loader), 1)
 
 
-def validate(model, loader, device, n_future=100):
+def validate(model, loader, device, n_future=5000):
     model.eval()
-    preds, trues = [], []
+    preds, trues, lens_all = [], [], []
 
     with torch.no_grad():
         for batch in loader:
             b = _to_device(batch, device)
             out = model(b)
             pred = out[0] if isinstance(out, (tuple, list)) else out
-            target = b['soh_traj'][:, :n_future]
-            t = min(pred.shape[1], target.shape[1])
-            preds.append(pred[:, :t].cpu().numpy())
-            trues.append(target[:, :t].cpu().numpy())
+            preds.append(pred.cpu())
+            trues.append(b['soh_traj'][:, :n_future].cpu())
+            lens_all.append(b['soh_traj_len'].cpu())
 
-    preds = np.concatenate(preds, axis=0)
-    trues = np.concatenate(trues, axis=0)
-    return float(np.mean(np.abs(preds - trues)))
+    preds = torch.cat(preds, dim=0)
+    trues = torch.cat(trues, dim=0)
+    lens  = torch.cat(lens_all, dim=0)
+    return _masked_mae(preds, trues, lens)
 
 
 def train(model, train_loader, val_loader, config, save_path, device='cuda'):
@@ -65,7 +80,7 @@ def train(model, train_loader, val_loader, config, save_path, device='cuda'):
     wd       = t_cfg.get('weight_decay', 1e-4)
     epochs   = t_cfg.get('epochs', 300)
     patience = t_cfg.get('patience', 30)
-    n_future = d_cfg.get('n_future', 100)
+    n_future = d_cfg.get('n_future', 5000)
 
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)

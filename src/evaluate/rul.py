@@ -48,7 +48,7 @@ def evaluate(
 
     mask = trues > 1e-6
     rel_err = np.abs(preds[mask] - trues[mask]) / trues[mask]
-    mape  = float(np.mean(rel_err) * 100) if mask.any() else float('nan')
-    acc15 = float(np.mean(rel_err <= 0.15) * 100) if mask.any() else float('nan')
+    mape  = float(np.mean(rel_err))       if mask.any() else float('nan')
+    acc15 = float(np.mean(rel_err <= 0.15)) if mask.any() else float('nan')
 
     return {'mae': mae, 'mse': mse, 'rmse': rmse, 'mape': mape, 'acc15': acc15}
