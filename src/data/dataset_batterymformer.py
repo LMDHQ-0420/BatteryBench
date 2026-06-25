@@ -228,6 +228,7 @@ class BatteryMFormerDataset(Dataset):
         n_cycles: int = 100,
         L: int = L_DEFAULT,
         soh_threshold: float = 0.80,
+        **kwargs,   # absorb unused args passed by train.py (n_grid, task, etc.)
     ):
         if isinstance(pkl_dirs, str):
             pkl_dirs = [pkl_dirs]
