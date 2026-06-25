@@ -1,0 +1,43 @@
+# Data
+data/raw/
+data/pkl/
+data/cache/
+data/cache_batterymformer/
+
+# Results and logs
+results/
+log/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Env
+.env
+*.env
+.venv/
+
+# Temp files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

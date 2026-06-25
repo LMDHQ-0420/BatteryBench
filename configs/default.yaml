@@ -1,0 +1,28 @@
+model:
+  n_grid: 200
+  n_cycles: 100
+  dropout: 0.1
+
+train:
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  epochs: 300
+  patience: 30
+  batch_size: 32
+  use_log_rul: false
+
+data:
+  task: rul                # rul | soh_point | soh_traj
+  n_future: 100            # soh_traj 预测步数
+  soh_threshold: 0.80
+  n_cycles: 100
+  n_grid: 200
+  val_ratio: 0.1
+  test_ratio: 0.2
+  n_splits: 3
+
+  # 划分方式: random | stratified
+  split_strategy: random
+
+  # stratified: 按哪个字段分层（cathode_material / dataset_name）
+  stratify_by: cathode_material

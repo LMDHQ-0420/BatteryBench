@@ -1,0 +1,11 @@
+data:
+  pkl_dir: data/preprocessed/CALB
+  n_splits: 3
+  val_ratio: 0.2
+  test_ratio: 0.2
+  n_cycles: 30        # CALB cells have only 100 cycles total; use 30 as obs window
+  soh_threshold: 0.75 # starting SOH is already ~0.77-0.87; use 0.75 as EOL threshold
+
+model:
+  n_cycles: 30
+  n_grid: 200

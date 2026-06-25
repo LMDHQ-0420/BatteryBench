@@ -1,0 +1,5 @@
+data:
+  pkl_dir: data/preprocessed/ZNion
+  n_splits: 3
+  val_ratio: 0.2
+  test_ratio: 0.2

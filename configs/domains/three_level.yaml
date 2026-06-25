@@ -1,0 +1,30 @@
+data:
+  # 训练池：481 颗，按 cathode_material 分层 8% 作 val，其余 train
+  split_strategy: three_level
+  val_ratio: 0.08
+
+  train_dirs:
+    - data/preprocessed/HUST          # LFP, batch 1-7,10
+    - data/preprocessed/MATR          # LFP, b1-b3
+    - data/preprocessed/RWTH          # NMC
+    - data/preprocessed/SDU           # NMC
+    - data/preprocessed/Stanford      # NMC
+    - data/preprocessed/Tongji        # NMC
+    - data/preprocessed/ISU-ILCC      # NCA
+    - data/preprocessed/MICH          # NMC/NCA
+
+  # 固定测试集，完全隔离，不参与训练和验证
+  # level: L1=同化学跨数据集, L2=锂离子跨正极, L3=跨离子体系
+  test_sets:
+    - dir: data/preprocessed/HUST_batch8    # LFP, batch-8
+      level: L1
+    - dir: data/preprocessed/MATR_b4       # LFP, b4
+      level: L1
+    - dir: data/preprocessed/CALCE         # LCO
+      level: L2
+    - dir: data/preprocessed/HNEI          # NMC/LCO
+      level: L2
+    - dir: data/preprocessed/NAion         # 钠离子
+      level: L3
+    - dir: data/preprocessed/ZNion         # 锌离子
+      level: L3

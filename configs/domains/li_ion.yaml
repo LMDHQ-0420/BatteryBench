@@ -1,0 +1,19 @@
+data:
+  pkl_dirs:
+    - data/preprocessed/CALCE
+    - data/preprocessed/HNEI
+    - data/preprocessed/HUST
+    - data/preprocessed/ISU-ILCC
+    - data/preprocessed/MATR
+    - data/preprocessed/MICH
+    - data/preprocessed/MICH-EXP
+    - data/preprocessed/RWTH
+    - data/preprocessed/SDU
+    - data/preprocessed/SNL
+    - data/preprocessed/Stanford
+    - data/preprocessed/Tongji
+    - data/preprocessed/UL-PUR
+    - data/preprocessed/XJTU
+  val_ratio: 0.1
+  test_ratio: 0.2
+  n_splits: 3
