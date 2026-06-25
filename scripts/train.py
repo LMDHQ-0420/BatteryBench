@@ -45,6 +45,8 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
     n_grid        = d_cfg.get('n_grid',   cfg['model'].get('n_grid', 200))
     soh_threshold = d_cfg.get('soh_threshold', 0.80)
     use_log_rul   = t_cfg.get('use_log_rul', False) and task == 'rul'
+    if task == 'soh_traj':
+        d_cfg['n_future'] = n_cycles  # soh_traj output length == observation window
     batch_size    = t_cfg.get('batch_size', 32)
     if spec.batch_size_cap:
         batch_size = min(batch_size, spec.batch_size_cap)

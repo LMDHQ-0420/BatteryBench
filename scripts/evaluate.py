@@ -60,7 +60,7 @@ def _eval_three_level(model_name: str, task: str, cfg: dict,
     n_grid        = d_cfg.get('n_grid',   cfg['model'].get('n_grid', 200))
     soh_threshold = d_cfg.get('soh_threshold', 0.80)
     use_log_rul   = t_cfg.get('use_log_rul', False) and task == 'rul'
-    n_future      = d_cfg.get('n_future', 100)
+    n_future      = n_cycles if task == 'soh_traj' else d_cfg.get('n_future', 100)
     batch_size    = t_cfg.get('batch_size', 32)
     evaluate_fn   = _get_evaluate_fn(task)
 
@@ -153,7 +153,7 @@ def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
     n_grid        = d_cfg.get('n_grid',   cfg['model'].get('n_grid', 200))
     soh_threshold = d_cfg.get('soh_threshold', 0.80)
     use_log_rul   = t_cfg.get('use_log_rul', False) and task == 'rul'
-    n_future      = d_cfg.get('n_future', 100)
+    n_future      = n_cycles if task == 'soh_traj' else d_cfg.get('n_future', 100)
     batch_size    = t_cfg.get('batch_size', 32)
     evaluate_fn   = _get_evaluate_fn(task)
 
