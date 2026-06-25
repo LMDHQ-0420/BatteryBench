@@ -53,6 +53,25 @@ Fixed train pool; three held-out test tiers:
 | `soh_point` | MAE, MSE, RMSE, MAPE, 15%-Acc |
 | `soh_traj` | MAE, MSE, RMSE, MAPE |
 
+## Data Download
+
+All raw datasets are publicly available. Download them and place the files under `data/raw/`.
+
+| Dataset | Link |
+|---------|------|
+| Zn-ion, Na-ion, CALB | [Zenodo](https://zenodo.org/records/17960956) · [HuggingFace](https://huggingface.co/datasets/Hongwxx/BatteryLife_Raw/tree/main) · [tutorial](./assets/Data_download.md#how-to-download-the-raw-data-from-huggingface) |
+| CALCE | https://calce.umd.edu/battery-data |
+| MATR (batches 1-3) | https://data.matr.io/1/projects/5c48dd2bc625d700019f3204 |
+| MATR (batch 9) | https://data.matr.io/1/projects/5d80e633f405260001c0b60a/batches/5dcef1fe110002c7215b2c94 |
+| HUST | https://data.mendeley.com/datasets/nsc7hnsg4s/2 |
+| RWTH | https://publications.rwth-aachen.de/record/818642/files/Rawdata.zip |
+| ISU_ILCC | https://iastate.figshare.com/articles/dataset/_b_ISU-ILCC_Battery_Aging_Dataset_b_/22582234 |
+| XJTU | https://zenodo.org/records/10963339 |
+| Tongji | https://zenodo.org/records/6405084 |
+| Stanford | https://data.matr.io/8/ |
+| HNEI, SNL, MICH, MICH_EXP, UL_PUR | https://www.batteryarchive.org/index.html |
+| SDU | https://zenodo.org/records/14859405 |
+
 ## Environment Setup
 
 ```bash
