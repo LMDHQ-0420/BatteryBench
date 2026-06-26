@@ -50,9 +50,6 @@ def _print_metrics(metrics: dict):
 def _eval_three_level(model_name: str, task: str, cfg: dict,
                       save_dir: str, device: str):
     spec = get_spec(model_name, task)
-    if spec.build_fn is None:
-        print(f'  {model_name}: sklearn — three_level evaluation not supported.')
-        return
 
     d_cfg         = cfg['data']
     t_cfg         = cfg['train']
@@ -60,11 +57,77 @@ def _eval_three_level(model_name: str, task: str, cfg: dict,
     n_grid        = d_cfg.get('n_grid',   cfg['model'].get('n_grid', 200))
     soh_threshold = d_cfg.get('soh_threshold', 0.80)
     use_log_rul   = t_cfg.get('use_log_rul', False) and task == 'rul'
-    n_future      = n_cycles if task == 'soh_traj' else d_cfg.get('n_future', 100)
+    n_future      = d_cfg.get('n_future', 5000)
     batch_size    = t_cfg.get('batch_size', 32)
     evaluate_fn   = _get_evaluate_fn(task)
 
     model_save_dir = os.path.join(save_dir, model_name)
+
+    # sklearn 模型：加载 pickle
+    if spec.build_fn is None:
+        pkl_path = os.path.join(model_save_dir, 'best.pkl')
+        if not os.path.exists(pkl_path):
+            print(f'  No pickle found at {pkl_path}. Run scripts/train.py first.')
+            return
+        # 动态导入对应任务的 evaluate 函数
+        if task == 'rul':
+            from src.train.rul.train_severson      import evaluate as sklearn_eval
+        elif task == 'soh_point':
+            from src.train.soh_point.train_severson import evaluate as sklearn_eval
+        else:
+            from src.train.soh_traj.train_severson  import evaluate as sklearn_eval
+        test_sets = d_cfg.get('test_sets', [])
+        if not test_sets:
+            print('  No test_sets defined in config.')
+            return
+        by_level: dict[str, list] = {}
+        all_results = []
+        for ts in test_sets:
+            ts_dir  = ts['dir']
+            level   = ts['level']
+            pattern = ts.get('pattern', None)
+            ds_name = os.path.basename(ts_dir)
+            if pattern:
+                import fnmatch
+                all_files = sorted(glob.glob(os.path.join(ts_dir, '*.pkl')))
+                matched   = [f for f in all_files if fnmatch.fnmatch(os.path.basename(f), pattern)]
+                ds_name   = f'{os.path.basename(ts_dir)}[{pattern}]'
+                test_ds   = spec.dataset_cls(ts_dir, n_cycles=n_cycles, n_grid=n_grid,
+                                             soh_threshold=soh_threshold,
+                                             pkl_files=matched)
+            else:
+                test_ds = spec.dataset_cls(ts_dir, n_cycles=n_cycles, n_grid=n_grid,
+                                           soh_threshold=soh_threshold)
+            if len(test_ds) == 0:
+                print(f'  [{level}] {ds_name}: empty, skipping.')
+                continue
+            metrics = sklearn_eval(test_ds, pkl_path)
+            line = f'  [{level}] {ds_name:20s} n={len(test_ds):3d} | '
+            line += '  '.join(f'{k.upper()}={v:.4f}' for k, v in metrics.items())
+            print(line)
+            by_level.setdefault(level, []).append((metrics, len(test_ds)))
+            all_results.append({'dataset': ds_name, 'level': level,
+                                'n_cells': len(test_ds), **metrics})
+        if not all_results:
+            return
+        print()
+        level_summary = {}
+        for level in sorted(by_level):
+            pairs = by_level[level]
+            total = sum(n for _, n in pairs)
+            keys  = list(pairs[0][0].keys())
+            w_avg = {k: sum(m[k] * n for m, n in pairs) / total for k in keys}
+            level_summary[level] = {**w_avg, 'n_cells': total}
+            print(f'  {level} (n={total}): ' +
+                  '  '.join(f'{k.upper()}={w_avg[k]:.4f}' for k in keys))
+        result_path = os.path.join(model_save_dir, 'results.json')
+        os.makedirs(model_save_dir, exist_ok=True)
+        with open(result_path, 'w') as f:
+            json.dump({'domain': 'three_level', 'task': task, 'model': model_name,
+                       'test_sets': all_results, 'level_summary': level_summary}, f, indent=2)
+        print(f'  Saved → {result_path}')
+        return
+
     ckpt_path = os.path.join(model_save_dir, 'best.pt')
     if not os.path.exists(ckpt_path):
         print(f'  No checkpoint found at {ckpt_path}. Run scripts/train.py first.')
@@ -151,10 +214,6 @@ def _eval_three_level(model_name: str, task: str, cfg: dict,
 def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
                    checkpoint, save_dir: str, device: str):
     spec = get_spec(model_name, task)
-    if spec.build_fn is None:
-        print(f'  {model_name}: sklearn — no checkpoint to evaluate. '
-              f'Metrics are printed during training.')
-        return
 
     d_cfg         = cfg['data']
     t_cfg         = cfg['train']
@@ -166,6 +225,64 @@ def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
     n_future      = d_cfg.get('n_future', 5000)
     batch_size    = t_cfg.get('batch_size', 32)
     evaluate_fn   = _get_evaluate_fn(task)
+
+    model_save_dir = os.path.join(save_dir, model_name)
+
+    # sklearn 模型：从 split{si}.pkl 加载推理
+    if spec.build_fn is None:
+        if task == 'rul':
+            from src.train.rul.train_severson       import evaluate as sklearn_eval
+        elif task == 'soh_point':
+            from src.train.soh_point.train_severson  import evaluate as sklearn_eval
+        else:
+            from src.train.soh_traj.train_severson   import evaluate as sklearn_eval
+
+        pkl_files = sorted(glob.glob(os.path.join(model_save_dir, 'split*.pkl')))
+        if not pkl_files:
+            print(f'  No pkl files found in {model_save_dir}. Run scripts/train.py first.')
+            return
+
+        ds_for_splits = BatteryDataset(pkl_dir, n_cycles=n_cycles, n_grid=n_grid,
+                                       soh_threshold=soh_threshold)
+        all_splits = make_splits(ds_for_splits, cfg)
+
+        import copy
+        all_metrics = []
+        for pkl_path in pkl_files:
+            basename = os.path.basename(pkl_path)
+            try:
+                si = int(basename.replace('split', '').replace('.pkl', '')) - 1
+            except ValueError:
+                si = 0
+            if si >= len(all_splits):
+                continue
+            split = all_splits[si]
+            test_ds = copy.copy(ds_for_splits)
+            test_ds._samples = [ds_for_splits._all_samples[i] for i in split['test']
+                                 if i < len(ds_for_splits._all_samples)]
+            if len(test_ds) == 0:
+                continue
+            metrics = sklearn_eval(test_ds, pkl_path)
+            print(f'  Split {si+1}:', end='  ')
+            _print_metrics(metrics)
+            all_metrics.append(metrics)
+
+        if not all_metrics:
+            return
+        keys = list(all_metrics[0].keys())
+        print(f'\n  === {model_name.upper()} @ {task} / {domain} ({len(all_metrics)} splits) ===')
+        for k in keys:
+            vals = [m[k] for m in all_metrics]
+            print(f'    {k.upper():8s}: {np.mean(vals):.4f} ± {np.std(vals):.4f}')
+        result_path = os.path.join(model_save_dir, 'results.json')
+        with open(result_path, 'w') as f:
+            json.dump({'domain': domain, 'task': task, 'model': model_name,
+                       'splits': all_metrics,
+                       'mean': {k: float(np.mean([m[k] for m in all_metrics])) for k in keys},
+                       'std':  {k: float(np.std( [m[k] for m in all_metrics])) for k in keys},
+                       }, f, indent=2)
+        print(f'  Saved → {result_path}')
+        return
 
     model_save_dir = os.path.join(save_dir, model_name)
 

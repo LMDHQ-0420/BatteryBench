@@ -55,22 +55,44 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
 
     # ── three_level: 固定 train/val，无随机 test ──────────────────────────────
     if strategy == 'three_level':
-        train_dirs       = d_cfg.get('train_dirs', [])
-        exclude_pattern  = d_cfg.get('exclude_pattern', None)
-        all_splits = make_splits(None, cfg, seed=0)
+        import copy
+        train_dirs      = d_cfg.get('train_dirs', [])
+        exclude_pattern = d_cfg.get('exclude_pattern', None)
+
+        # 加载一次 BatteryDataset 用于 make_splits，同时作为 BatteryDataset 模型的数据源
+        pool_ds = BatteryDataset(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
+                                 soh_threshold=soh_threshold,
+                                 exclude_pattern=exclude_pattern)
+        all_splits = make_splits(pool_ds, cfg, seed=0)
         split = all_splits[0]
         print(f'  train={len(split["train"])}  val={len(split["val"])}')
 
+        use_bd = (spec.dataset_cls is BatteryDataset)
+        if not use_bd:
+            # 非 BatteryDataset（如 batterymformer）：单独加载一次，再切片
+            full_ds = spec.dataset_cls(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
+                                       soh_threshold=soh_threshold,
+                                       exclude_pattern=exclude_pattern)
+        else:
+            full_ds = pool_ds
+
+        def _slice(indices, use_log=False):
+            ds = copy.copy(full_ds)
+            sliced = [full_ds._all_samples[i] for i in indices
+                      if i < len(full_ds._all_samples)]
+            if hasattr(full_ds, '_samples'):
+                ds._samples = sliced
+            else:
+                ds.samples = sliced
+            if hasattr(ds, 'use_log_rul'):
+                ds.use_log_rul = use_log
+            return ds
+
         if spec.build_fn is None:
-            train_ds = spec.dataset_cls(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
-                                        soh_threshold=soh_threshold,
-                                        split_indices=split['train'],
-                                        exclude_pattern=exclude_pattern)
-            val_ds   = spec.dataset_cls(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
-                                        soh_threshold=soh_threshold,
-                                        split_indices=split['val'],
-                                        exclude_pattern=exclude_pattern)
-            metrics = spec.train_fn(train_ds, val_ds)
+            train_ds = _slice(split['train'])
+            val_ds   = _slice(split['val'])
+            pkl_path = os.path.join(model_save_dir, 'best.pkl')
+            metrics = spec.train_fn(train_ds, val_ds, save_path=pkl_path)
             _print_metrics(metrics)
             result_path = os.path.join(model_save_dir, 'results.json')
             keys = list(metrics.keys())
@@ -84,14 +106,8 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
             print(f'  Saved → {result_path}')
             return
 
-        train_ds = spec.dataset_cls(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
-                                    soh_threshold=soh_threshold,
-                                    split_indices=split['train'], use_log_rul=use_log_rul,
-                                    exclude_pattern=exclude_pattern)
-        val_ds   = spec.dataset_cls(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
-                                    soh_threshold=soh_threshold,
-                                    split_indices=split['val'],   use_log_rul=use_log_rul,
-                                    exclude_pattern=exclude_pattern)
+        train_ds = _slice(split['train'], use_log=use_log_rul)
+        val_ds   = _slice(split['val'],   use_log=use_log_rul)
         if len(train_ds) == 0 or len(val_ds) == 0:
             print('  Skipping: empty train or val set.')
             return
@@ -151,11 +167,11 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
             if len(train_ds) == 0 or len(test_ds) == 0:
                 print('  Skipping empty split.')
                 continue
-            metrics = spec.train_fn(train_ds, test_ds)
+            pkl_path = os.path.join(model_save_dir, f'split{si}.pkl')
+            metrics = spec.train_fn(train_ds, test_ds, save_path=pkl_path)
             _print_metrics(metrics)
             all_metrics.append(metrics)
         if all_metrics:
-            import json
             keys = list(all_metrics[0].keys())
             result_path = os.path.join(model_save_dir, 'results.json')
             with open(result_path, 'w') as f:

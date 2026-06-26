@@ -80,7 +80,7 @@ def _stratified_splits(
     return splits
 
 
-def _three_level_split(cfg: dict, seed: int) -> List[Dict]:
+def _three_level_split(cfg: dict, seed: int, pool_ds=None) -> List[Dict]:
     """
     三层泛化阶梯划分。
 
@@ -106,13 +106,14 @@ def _three_level_split(cfg: dict, seed: int) -> List[Dict]:
 
     from src.config import get_pkl_dir as _get_pkl_dir
 
-    # 加载 train pool
+    # 加载 train pool（若外部已加载则复用）
     n_cycles      = d_cfg.get('n_cycles', cfg.get('model', {}).get('n_cycles', 100))
     n_grid        = d_cfg.get('n_grid',   cfg.get('model', {}).get('n_grid', 200))
     soh_threshold = d_cfg.get('soh_threshold', 0.80)
 
-    pool_ds = BatteryDataset(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
-                             soh_threshold=soh_threshold)
+    if pool_ds is None:
+        pool_ds = BatteryDataset(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
+                                 soh_threshold=soh_threshold)
     meta = pool_ds.get_meta()
 
     # 按 cathode_material 分层抽 val_ratio 作 val
@@ -166,7 +167,7 @@ def make_splits(ds: BatteryDataset, cfg: dict, seed: int = 42) -> List[Dict]:
         return _stratified_splits(ds.get_meta(), stratify_by, val_ratio, test_ratio, n_splits, seed)
 
     elif strategy == 'three_level':
-        return _three_level_split(cfg, seed)
+        return _three_level_split(cfg, seed, pool_ds=ds)
 
     else:
         raise ValueError(f"Unknown split_strategy '{strategy}'. 可选: random | stratified | three_level")
