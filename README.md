@@ -197,7 +197,7 @@ All metrics reported as mean over 3 random splits. MAPE and ACC15 are in [0, 1] 
 
 #### RUL — MAPE ↓ / ACC15 ↑
 
-| Model | Li-ion MAPE | Li-ion ACC15 | CALB MAPE | CALB ACC15 | Na-ion MAPE | Na-ion ACC15 | Zn-ion MAPE | Zn-ion ACC15 |
+| Model | Li-ion<br>MAPE | Li-ion<br>ACC15 | CALB<br>MAPE | CALB<br>ACC15 | Na-ion<br>MAPE | Na-ion<br>ACC15 | Zn-ion<br>MAPE | Zn-ion<br>ACC15 |
 |---|---|---|---|---|---|---|---|---|
 | Autoformer | 0.8961 | 0.2741 | 0.1476 | 0.6667 | 2.6887 | 0.1212 | 5.6243 | 0.0556 |
 | BatLiNet | 1.0710 | 0.1711 | 0.5708 | 0.0000 | 0.8796 | 0.0303 | 0.9228 | 0.0000 |
@@ -219,7 +219,7 @@ All metrics reported as mean over 3 random splits. MAPE and ACC15 are in [0, 1] 
 
 #### SOH Point — MAPE ↓ / RMSE ↓
 
-| Model | Li-ion MAPE | Li-ion RMSE | CALB MAPE | CALB RMSE | Na-ion MAPE | Na-ion RMSE | Zn-ion MAPE | Zn-ion RMSE |
+| Model | Li-ion<br>MAPE | Li-ion<br>RMSE | CALB<br>MAPE | CALB<br>RMSE | Na-ion<br>MAPE | Na-ion<br>RMSE | Zn-ion<br>MAPE | Zn-ion<br>RMSE |
 |---|---|---|---|---|---|---|---|---|
 | Autoformer | 0.0326 | 0.0403 | 0.0019 | 0.0019 | 0.0421 | 0.0407 | 0.0464 | 0.0755 |
 | BatLiNet | 0.3895 | 0.4028 | 0.0798 | 0.0885 | 0.3144 | 0.2812 | 0.5950 | 0.5785 |
@@ -241,7 +241,7 @@ All metrics reported as mean over 3 random splits. MAPE and ACC15 are in [0, 1] 
 
 #### SOH Trajectory — MAPE ↓ / RMSE ↓
 
-| Model | Li-ion MAPE | Li-ion RMSE | CALB MAPE | CALB RMSE | Na-ion MAPE | Na-ion RMSE | Zn-ion MAPE | Zn-ion RMSE |
+| Model | Li-ion<br>MAPE | Li-ion<br>RMSE | CALB<br>MAPE | CALB<br>RMSE | Na-ion<br>MAPE | Na-ion<br>RMSE | Zn-ion<br>MAPE | Zn-ion<br>RMSE |
 |---|---|---|---|---|---|---|---|---|
 | Autoformer | 0.5179 | 0.1308 | 0.0244 | 0.0282 | 0.0470 | 0.0508 | 0.1259 | 0.1287 |
 | BatLiNet | 0.8419 | 0.4819 | 0.0611 | 0.0696 | 0.2949 | 0.2684 | 0.9738 | 0.8523 |
@@ -269,7 +269,7 @@ Train on Li-ion pool; test on L1 (same chemistry, cross-dataset), L2 (Li-ion cro
 
 #### RUL — MAPE ↓ / ACC15 ↑
 
-| Model | L1 MAPE | L1 ACC15 | L2 MAPE | L2 ACC15 | L3 MAPE | L3 ACC15 |
+| Model | L1<br>MAPE | L1<br>ACC15 | L2<br>MAPE | L2<br>ACC15 | L3<br>MAPE | L3<br>ACC15 |
 |---|---|---|---|---|---|---|
 | Autoformer | 0.1996 | 0.4590 | 1.4672 | 0.0000 | 12.3778 | 0.0347 |
 | BatLiNet | 0.3340 | 0.2295 | 0.6418 | 0.1481 | 3.4644 | 0.0694 |
@@ -291,7 +291,7 @@ Train on Li-ion pool; test on L1 (same chemistry, cross-dataset), L2 (Li-ion cro
 
 #### SOH Point — MAPE ↓ / RMSE ↓
 
-| Model | L1 MAPE | L1 RMSE | L2 MAPE | L2 RMSE | L3 MAPE | L3 RMSE |
+| Model | L1<br>MAPE | L1<br>RMSE | L2<br>MAPE | L2<br>RMSE | L3<br>MAPE | L3<br>RMSE |
 |---|---|---|---|---|---|---|
 | Autoformer | 0.0293 | 0.0303 | 0.0617 | 0.0605 | 0.0791 | 0.0815 |
 | BatLiNet | 0.1919 | 0.2030 | 0.2758 | 0.2663 | 0.6093 | 0.5782 |
@@ -313,7 +313,7 @@ Train on Li-ion pool; test on L1 (same chemistry, cross-dataset), L2 (Li-ion cro
 
 #### SOH Trajectory — MAPE ↓ / RMSE ↓
 
-| Model | L1 MAPE | L1 RMSE | L2 MAPE | L2 RMSE | L3 MAPE | L3 RMSE |
+| Model | L1<br>MAPE | L1<br>RMSE | L2<br>MAPE | L2<br>RMSE | L3<br>MAPE | L3<br>RMSE |
 |---|---|---|---|---|---|---|
 | Autoformer | 0.0641 | 0.0744 | 0.3627 | 0.2352 | 0.2357 | 0.2281 |
 | BatLiNet | 0.4718 | 0.4516 | 0.3631 | 0.2988 | 0.6692 | 0.6000 |

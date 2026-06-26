@@ -1,9 +1,11 @@
 # Data
 data/
 
-# Results and logs
-results/
-log/
+# Results — track json, ignore model weights
+results/**/*.pt
+results/**/*.pkl
+
+# Logs — track json summaries, ignore raw log files
 *.log
 
 # Python
