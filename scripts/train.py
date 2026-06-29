@@ -216,15 +216,17 @@ def main():
                         help='rul | soh_point | soh_traj. Defaults to config data.task.')
     parser.add_argument('--split_idx', type=int, default=None,
                         help='Only run this split (1-based). Ignored for three_level.')
-    parser.add_argument('--seed',      type=int, default=42)
+    parser.add_argument('--seed',      type=int, default=None,
+                        help='Random seed. If not set, no seed is fixed.')
     parser.add_argument('--gpu',       type=int, default=None,
                         help='GPU index to use (e.g. 0, 1). Defaults to cuda:0 if available.')
     parser.add_argument('--config',    default='configs/default.yaml')
     parser.add_argument('--save_dir',  default=None)
     args = parser.parse_args()
 
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
+    if args.seed is not None:
+        torch.manual_seed(args.seed)
+        np.random.seed(args.seed)
     if args.gpu is not None and torch.cuda.is_available():
         device = f'cuda:{args.gpu}'
     else:

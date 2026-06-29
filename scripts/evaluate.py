@@ -116,7 +116,11 @@ def _eval_three_level(model_name: str, task: str, cfg: dict,
             pairs = by_level[level]
             total = sum(n for _, n in pairs)
             keys  = list(pairs[0][0].keys())
-            w_avg = {k: sum(m[k] * n for m, n in pairs) / total for k in keys}
+            def _wavg(k):
+                valid = [(m[k], n) for m, n in pairs if m[k] == m[k]]  # exclude NaN
+                if not valid: return float('nan')
+                return sum(v * n for v, n in valid) / sum(n for _, n in valid)
+            w_avg = {k: _wavg(k) for k in keys}
             level_summary[level] = {**w_avg, 'n_cells': total}
             print(f'  {level} (n={total}): ' +
                   '  '.join(f'{k.upper()}={w_avg[k]:.4f}' for k in keys))
@@ -170,7 +174,9 @@ def _eval_three_level(model_name: str, task: str, cfg: dict,
         test_loader = DataLoader(test_ds, batch_size=batch_size,
                                  shuffle=False, num_workers=0)
         if task == 'rul':
-            metrics = evaluate_fn(model, test_loader, device, use_log_rul=use_log_rul)
+            ckpt_path = os.path.join(model_save_dir, 'best.pt')
+            scaler_path = ckpt_path.replace('.pt', '_scaler.pkl')
+            metrics = evaluate_fn(model, test_loader, device, scaler_path=scaler_path)
         elif task == 'soh_traj':
             metrics = evaluate_fn(model, test_loader, device, n_future=n_future)
         else:
@@ -193,7 +199,11 @@ def _eval_three_level(model_name: str, task: str, cfg: dict,
         pairs = by_level[level]
         total = sum(n for _, n in pairs)
         keys  = list(pairs[0][0].keys())
-        w_avg = {k: sum(m[k] * n for m, n in pairs) / total for k in keys}
+        def _wavg(k):
+            valid = [(m[k], n) for m, n in pairs if m[k] == m[k]]  # exclude NaN
+            if not valid: return float('nan')
+            return sum(v * n for v, n in valid) / sum(n for _, n in valid)
+        w_avg = {k: _wavg(k) for k in keys}
         level_summary[level] = {**w_avg, 'n_cells': total}
         print(f'  {level} (n={total}): ' +
               '  '.join(f'{k.upper()}={w_avg[k]:.4f}' for k in keys))
@@ -344,7 +354,8 @@ def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
                                          weights_only=True))
 
         if task == 'rul':
-            metrics = evaluate_fn(model, test_loader, device, use_log_rul=use_log_rul)
+            scaler_path = ckpt_path.replace('.pt', '_scaler.pkl')
+            metrics = evaluate_fn(model, test_loader, device, scaler_path=scaler_path)
         elif task == 'soh_traj':
             metrics = evaluate_fn(model, test_loader, device, n_future=n_future)
         else:

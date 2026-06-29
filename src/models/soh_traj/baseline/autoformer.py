@@ -1,7 +1,7 @@
 """
 soh_traj/autoformer.py — Autoformer for SOH degradation trajectory prediction.
 Reference: Wu et al., NeurIPS 2021 (simplified adaptation).
-Input:  batch['Q'] (B, S, N) → capacity_seq = Q.max(dim=-1) → (B, S)
+Input:  batch['curves'] (B, S, 3, L) → per-cycle token (B, S, 3*L)
 Output: (pred:(B, n_future), None)
 """
 
@@ -11,27 +11,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class _SeriesDecomp(nn.Module):
-    def __init__(self, kernel: int):
-        super().__init__()
-        self.avg = nn.AvgPool1d(kernel_size=kernel, stride=1, padding=kernel // 2)
-
-    def forward(self, x):
-        trend = self.avg(x.unsqueeze(1)).squeeze(1)
-        if trend.shape[-1] != x.shape[-1]:
-            trend = trend[:, :x.shape[-1]]
-        return x - trend, trend
-
-
 class _AutoCorrelation(nn.Module):
     def __init__(self, d_model: int, n_heads: int, top_k: int = 3):
         super().__init__()
-        self.n_heads = n_heads
+        self.n_heads  = n_heads
         self.head_dim = d_model // n_heads
-        self.top_k = top_k
-        self.q_proj = nn.Linear(d_model, d_model)
-        self.k_proj = nn.Linear(d_model, d_model)
-        self.v_proj = nn.Linear(d_model, d_model)
+        self.top_k    = top_k
+        self.q_proj   = nn.Linear(d_model, d_model)
+        self.k_proj   = nn.Linear(d_model, d_model)
+        self.v_proj   = nn.Linear(d_model, d_model)
         self.out_proj = nn.Linear(d_model, d_model)
 
     def forward(self, x):
@@ -47,7 +35,7 @@ class _AutoCorrelation(nn.Module):
         weights = F.softmax(weights, dim=2)
         out = torch.zeros_like(v)
         for i in range(k_val):
-            d_shift = delays[:, :, i:i+1, :]
+            d_shift  = delays[:, :, i:i+1, :]
             v_rolled = torch.roll(v, shifts=-int(d_shift.float().mean().item()), dims=2)
             out += weights[:, :, i:i+1, :] * v_rolled
         out = out.permute(0, 2, 1, 3).contiguous().view(B, S, d)
@@ -58,7 +46,7 @@ class _AutoformerLayer(nn.Module):
     def __init__(self, d_model: int, n_heads: int, kernel: int, dropout: float):
         super().__init__()
         self.autocorr = _AutoCorrelation(d_model, n_heads)
-        self.ff = nn.Sequential(
+        self.ff   = nn.Sequential(
             nn.Linear(d_model, d_model * 4), nn.GELU(), nn.Dropout(dropout),
             nn.Linear(d_model * 4, d_model),
         )
@@ -76,6 +64,7 @@ class Autoformer(nn.Module):
         super().__init__()
         m = cfg.get('model', {})
         S        = m.get('n_cycles', 100)
+        L        = cfg.get('data', {}).get('charge_discharge_length', 300)
         n_future = cfg.get('data', {}).get('n_future', 100)
         d_model  = m.get('autoformer_d_model', 64)
         n_heads  = m.get('autoformer_n_heads', 4)
@@ -83,7 +72,7 @@ class Autoformer(nn.Module):
         kernel   = m.get('autoformer_kernel', 13)
         dropout  = m.get('dropout', 0.1)
 
-        self.input_proj = nn.Linear(1, d_model)
+        self.input_proj = nn.Linear(3 * L, d_model)
         pe = torch.zeros(S, d_model)
         pos = torch.arange(S).unsqueeze(1).float()
         div = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
@@ -100,9 +89,11 @@ class Autoformer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['Q'].max(dim=-1).values
-        h = self.input_proj(x.unsqueeze(-1)) + self.pe
+        x = batch['curves']                   # (B, S, 3, L)
+        B, S, C, L = x.shape
+        x = x.reshape(B, S, C * L)
+        h = self.input_proj(x) + self.pe
         for layer in self.layers:
             h = layer(h)
-        pred = self.head(h.mean(dim=1))  # (B, n_future)
+        pred = self.head(h.mean(dim=1))       # (B, n_future)
         return pred, None

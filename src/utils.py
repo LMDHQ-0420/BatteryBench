@@ -149,13 +149,14 @@ def build_q_matrix(
     n_grid: int = 200,
 ) -> Optional[np.ndarray]:
     """
-    构建早期观测矩阵 Q ∈ R^{n_cycles × n_grid}。
+    构建早期观测矩阵 Q ∈ R^{n_cycles × n_grid}，归一化到 Q_nom。
     若有效圈数 < n_cycles * 0.8 返回 None。
     """
     cycle_data = cell['cycle_data']
     v_min = cell.get('min_voltage_limit_in_V', 2.0)
     v_max = cell.get('max_voltage_limit_in_V', 3.5)
     use_matr = is_matr_cell(cell)
+    nom = cell.get('nominal_capacity_in_Ah')
 
     Q = np.zeros((n_cycles, n_grid), dtype=float)
     valid_count = 0
@@ -175,6 +176,9 @@ def build_q_matrix(
 
     if valid_count < n_cycles * 0.8:
         return None
+
+    if nom and nom > 0:
+        Q = Q / nom
 
     return Q
 
@@ -200,3 +204,86 @@ def load_pkl(path: str) -> dict:
 def scan_pkl_dir(pkl_dir: str):
     """返回目录下所有 .pkl 文件路径列表，排序。"""
     return sorted(Path(pkl_dir).glob('*.pkl'))
+
+
+# ── 充放电曲线提取 ──────────────────────────────────────────────────────────
+
+def _resample(arr: np.ndarray, n: int) -> np.ndarray:
+    """线性插值重采样到 n 点。"""
+    if len(arr) == 0:
+        return np.zeros(n, dtype=float)
+    x_old = np.linspace(0, 1, len(arr))
+    x_new = np.linspace(0, 1, n)
+    return np.interp(x_new, x_old, arr)
+
+
+def get_charge_discharge_curves(
+    cycle: dict,
+    nominal_capacity: float,
+    charge_discharge_length: int = 300,
+) -> np.ndarray:
+    """
+    从单圈原始时序提取充放电曲线，归一化并重采样。
+
+    返回 shape (3, charge_discharge_length)：
+        row 0: 电压  V / max(V)
+        row 1: 电流  I / Q_nom  (C-rate)
+        row 2: 容量  Q / Q_nom
+
+    charge 占前 L//2 点，discharge 占后 L//2 点。
+    若某段数据不足则该段填 0。
+    """
+    L = charge_discharge_length
+    half = L // 2
+
+    v_raw = np.asarray(cycle.get('voltage_in_V', []), dtype=float)
+    i_raw = np.asarray(cycle.get('current_in_A', []), dtype=float)
+    qc_raw = np.asarray(cycle.get('charge_capacity_in_Ah', []), dtype=float)
+    qd_raw = np.asarray(cycle.get('discharge_capacity_in_Ah', []), dtype=float)
+
+    nom = nominal_capacity if (nominal_capacity and nominal_capacity > 0) else 1.0
+
+    # 分离充电段（电流 > 0）和放电段（电流 < 0）
+    charge_mask = i_raw > 0.01 * nom
+    discharge_mask = i_raw < -0.01 * nom
+
+    def _extract(mask, q_arr):
+        if mask.sum() < 5:
+            return np.zeros(half), np.zeros(half), np.zeros(half)
+        v_seg = _resample(np.nan_to_num(v_raw[mask]), half)
+        i_seg = _resample(np.nan_to_num(i_raw[mask]), half)
+        q_seg = _resample(np.nan_to_num(q_arr[mask]), half)
+        return v_seg, i_seg, q_seg
+
+    v_c, i_c, q_c = _extract(charge_mask, qc_raw)
+    v_d, i_d, q_d = _extract(discharge_mask, qd_raw)
+
+    v_all = np.concatenate([v_c, v_d])   # (L,)
+    i_all = np.concatenate([i_c, i_d])
+    q_all = np.concatenate([q_c, q_d])
+
+    max_v = v_all.max()
+    v_norm = v_all / max_v if max_v > 1e-6 else v_all
+    i_norm = i_all / nom
+    q_norm = q_all / nom
+
+    return np.stack([v_norm, i_norm, q_norm], axis=0).astype(np.float32)  # (3, L)
+
+
+def build_curves_matrix(
+    cell: dict,
+    n_cycles: int = 100,
+    charge_discharge_length: int = 300,
+) -> np.ndarray:
+    """
+    构建充放电曲线矩阵 shape (n_cycles, 3, charge_discharge_length)。
+    不足 n_cycles 的圈用 zeros 填充。
+    """
+    nom = cell.get('nominal_capacity_in_Ah') or 1.0
+    cycle_data = cell['cycle_data']
+    curves = np.zeros((n_cycles, 3, charge_discharge_length), dtype=np.float32)
+    for i in range(min(n_cycles, len(cycle_data))):
+        curves[i] = get_charge_discharge_curves(
+            cycle_data[i], nom, charge_discharge_length
+        )
+    return curves

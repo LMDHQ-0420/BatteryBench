@@ -6,7 +6,7 @@ model:
 train:
   lr: 1.0e-3
   weight_decay: 1.0e-4
-  epochs: 300
+  epochs: 10000
   patience: 30
   batch_size: 32
   use_log_rul: false
@@ -17,6 +17,7 @@ data:
   soh_threshold: 0.80
   n_cycles: 100
   n_grid: 200
+  charge_discharge_length: 300
   val_ratio: 0.1
   test_ratio: 0.2
   n_splits: 3

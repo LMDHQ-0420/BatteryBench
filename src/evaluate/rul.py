@@ -1,40 +1,56 @@
 """
 evaluate/rul.py — RUL 预测评估
 输出: mae, mse, rmse, mape, acc15
+
+模型预测的是归一化后的 EOL，需加载 scaler 反变换后再算指标。
+scaler_path 由调用方传入（save_path.replace('.pt', '_scaler.pkl')）。
 """
 
+import pickle
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from typing import Dict
+from typing import Dict, Optional
 
 
 def evaluate(
     model: nn.Module,
     loader: DataLoader,
     device: str,
-    use_log_rul: bool = False,
+    scaler_path: Optional[str] = None,
+    use_log_rul: bool = False,      # kept for backward compat, not used
 ) -> Dict[str, float]:
     """
     评估 RUL 预测模型。
-    返回 {'mae', 'mse', 'rmse', 'mape', 'acc15'}。
-    acc15: 相对误差 ≤ 15% 的样本占比 (%)。
+    返回 {'mae', 'mse', 'rmse', 'mape', 'acc15'}，指标基于原始 RUL（cycles）。
     """
+    scaler = None
+    if scaler_path:
+        try:
+            with open(scaler_path, 'rb') as f:
+                scaler = pickle.load(f)
+        except Exception:
+            pass
+
     model.eval()
     preds, trues = [], []
 
     with torch.no_grad():
         for batch in loader:
             true_rul = batch['rul'].numpy().flatten()
+            true_eol = batch.get('eol', batch['rul']).numpy().flatten()
             b = {k: v.to(device) if isinstance(v, torch.Tensor) else v
                  for k, v in batch.items()}
             out = model(b)
             pred = (out[0] if isinstance(out, (tuple, list)) else out).cpu().numpy().flatten()
 
-            if use_log_rul:
-                pred = np.expm1(np.clip(pred, -10, 20))
-                true_rul = np.expm1(true_rul)
+            if scaler is not None:
+                # pred is normalized EOL → inverse → EOL → subtract n_cycles to get RUL
+                pred_eol = scaler.inverse_transform(pred.reshape(-1, 1)).flatten()
+                n_cycles = true_eol - true_rul          # recover n_cycles per sample
+                pred = pred_eol - n_cycles
+            # else: model predicts RUL directly (fallback for models without scaler)
 
             preds.extend(pred.tolist())
             trues.extend(true_rul.tolist())
@@ -48,7 +64,7 @@ def evaluate(
 
     mask = trues > 1e-6
     rel_err = np.abs(preds[mask] - trues[mask]) / trues[mask]
-    mape  = float(np.mean(rel_err))       if mask.any() else float('nan')
+    mape  = float(np.mean(rel_err))        if mask.any() else float('nan')
     acc15 = float(np.mean(rel_err <= 0.15)) if mask.any() else float('nan')
 
     return {'mae': mae, 'mse': mse, 'rmse': rmse, 'mape': mape, 'acc15': acc15}

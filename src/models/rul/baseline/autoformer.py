@@ -1,7 +1,7 @@
 """
 rul/autoformer.py — Autoformer for RUL prediction.
 Reference: Wu et al., NeurIPS 2021 (simplified adaptation).
-Input:  batch['Q'] (B, S, N)  → capacity_seq = Q.max(dim=-1) → (B, S)
+Input:  batch['curves'] (B, S, 3, L) → per-cycle token (B, S, 3*L)
 Output: (pred:(B,1), None)
 """
 
@@ -12,7 +12,6 @@ import torch.nn.functional as F
 
 
 class _SeriesDecomp(nn.Module):
-    """Moving-average decomposition kernel."""
     def __init__(self, kernel: int):
         super().__init__()
         self.avg = nn.AvgPool1d(kernel_size=kernel, stride=1, padding=kernel // 2)
@@ -21,11 +20,10 @@ class _SeriesDecomp(nn.Module):
         trend = self.avg(x.unsqueeze(1)).squeeze(1)
         if trend.shape[-1] != x.shape[-1]:
             trend = trend[:, :x.shape[-1]]
-        return x - trend, trend    # seasonal, trend
+        return x - trend, trend
 
 
 class _AutoCorrelation(nn.Module):
-    """Auto-Correlation layer (period-based, top-k)."""
     def __init__(self, d_model: int, n_heads: int, top_k: int = 3):
         super().__init__()
         self.n_heads = n_heads
@@ -42,20 +40,17 @@ class _AutoCorrelation(nn.Module):
         k = self.k_proj(x).view(B, S, self.n_heads, self.head_dim).permute(0, 2, 1, 3)
         v = self.v_proj(x).view(B, S, self.n_heads, self.head_dim).permute(0, 2, 1, 3)
 
-        # auto-correlation via FFT
         q_fft = torch.fft.rfft(q, dim=2)
         k_fft = torch.fft.rfft(k, dim=2)
-        corr  = torch.fft.irfft(q_fft * k_fft.conj(), n=S, dim=2)   # (B,H,S,d_h)
+        corr  = torch.fft.irfft(q_fft * k_fft.conj(), n=S, dim=2)
 
-        # top-k aggregation
         k_val = min(self.top_k, S)
         weights, delays = corr.topk(k_val, dim=2)
         weights = F.softmax(weights, dim=2)
 
-        # roll-aggregate
         out = torch.zeros_like(v)
         for i in range(k_val):
-            d_shift = delays[:, :, i:i+1, :]  # (B,H,1,d_h)
+            d_shift = delays[:, :, i:i+1, :]
             v_rolled = torch.roll(v, shifts=-int(d_shift.float().mean().item()), dims=2)
             out += weights[:, :, i:i+1, :] * v_rolled
 
@@ -77,10 +72,8 @@ class _AutoformerLayer(nn.Module):
         self.norm2 = nn.LayerNorm(d_model)
         self.drop  = nn.Dropout(dropout)
 
-    def forward(self, x):          # x: (B, S, d)
-        # auto-correlation + decomp
+    def forward(self, x):
         h = self.norm1(x + self.drop(self.autocorr(x)))
-        # ffn + decomp (decomp applied per-token on time axis)
         h2 = self.norm2(h + self.drop(self.ff(h)))
         return h2
 
@@ -90,13 +83,14 @@ class Autoformer(nn.Module):
         super().__init__()
         m = cfg.get('model', {})
         S        = m.get('n_cycles', 100)
+        L        = cfg.get('data', {}).get('charge_discharge_length', 300)
         d_model  = m.get('autoformer_d_model', 64)
         n_heads  = m.get('autoformer_n_heads', 4)
         n_layers = m.get('autoformer_n_layers', 2)
         kernel   = m.get('autoformer_kernel', 13)
         dropout  = m.get('dropout', 0.1)
 
-        self.input_proj = nn.Linear(1, d_model)
+        self.input_proj = nn.Linear(3 * L, d_model)
         pe = torch.zeros(S, d_model)
         pos = torch.arange(S).unsqueeze(1).float()
         div = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
@@ -114,9 +108,11 @@ class Autoformer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['Q'].max(dim=-1).values        # (B, S)
-        h = self.input_proj(x.unsqueeze(-1)) + self.pe  # (B, S, d)
+        x = batch['curves']                   # (B, S, 3, L)
+        B, S, C, L = x.shape
+        x = x.reshape(B, S, C * L)           # (B, S, 3*L)
+        h = self.input_proj(x) + self.pe      # (B, S, d)
         for layer in self.layers:
             h = layer(h)
-        pred = self.head(h.mean(dim=1))           # (B, 1)
+        pred = self.head(h.mean(dim=1))       # (B, 1)
         return pred, None

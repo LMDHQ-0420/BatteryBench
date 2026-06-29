@@ -1,6 +1,6 @@
 """
 soh_traj/cnn.py — 2D CNN for SOH degradation trajectory prediction.
-Input:  batch['Q'] (B, S, N)  treated as single-channel image
+Input:  batch['curves'] (B, S, 3, L) → treated as 3-channel image (B, 3, S, L)
 Output: (pred:(B, n_future), None)
 """
 
@@ -16,7 +16,7 @@ class CNN(nn.Module):
         dropout  = m.get('dropout', 0.1)
 
         self.conv = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=(3, 7), padding=(1, 3)), nn.ReLU(),
+            nn.Conv2d(3, 32, kernel_size=(3, 7), padding=(1, 3)), nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=(3, 7), padding=(1, 3)), nn.ReLU(),
             nn.AdaptiveAvgPool2d((4, 4)),
         )
@@ -26,7 +26,8 @@ class CNN(nn.Module):
         )
 
     def forward(self, batch: dict):
-        Q = batch['Q'].unsqueeze(1)
-        h = self.conv(Q).reshape(Q.shape[0], -1)
-        pred = self.head(h)  # (B, n_future)
+        x = batch['curves']                   # (B, S, 3, L)
+        x = x.permute(0, 2, 1, 3)            # (B, 3, S, L)
+        h = self.conv(x).reshape(x.shape[0], -1)
+        pred = self.head(h)                   # (B, n_future)
         return pred, None

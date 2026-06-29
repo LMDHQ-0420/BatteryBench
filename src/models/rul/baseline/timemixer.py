@@ -1,7 +1,7 @@
 """
 rul/timemixer.py — TimeMixer for RUL prediction.
 Reference: Wang et al., ICLR 2024 (simplified adaptation).
-Input:  batch['Q'] (B, S, N)  → capacity_seq = Q.max(dim=-1) → (B, S)
+Input:  batch['curves'] (B, S, 3, L) → per-cycle token (B, S, 3*L)
 Output: (pred:(B,1), None)
 """
 
@@ -15,10 +15,13 @@ class TimeMixer(nn.Module):
         super().__init__()
         m = cfg.get('model', {})
         S       = m.get('n_cycles', 100)
+        L       = cfg.get('data', {}).get('charge_discharge_length', 300)
         d_model = m.get('timemixer_d_model', 64)
         dropout = m.get('dropout', 0.1)
         scales  = m.get('timemixer_scales', [1, 4, 8, 16])
+        F_dim   = 3 * L
 
+        self.input_proj = nn.Linear(F_dim, d_model)
         self.pools      = nn.ModuleList()
         self.mixers     = nn.ModuleList()
         self.scale_lens = []
@@ -31,7 +34,7 @@ class TimeMixer(nn.Module):
                 self.pools.append(nn.AvgPool1d(kernel_size=k, stride=k))
                 self.scale_lens.append(S // k)
             self.mixers.append(nn.Sequential(
-                nn.Linear(self.scale_lens[-1], d_model), nn.ReLU(), nn.Dropout(dropout)
+                nn.Linear(self.scale_lens[-1] * d_model, d_model), nn.ReLU(), nn.Dropout(dropout)
             ))
 
         self.gate = nn.Linear(len(scales) * d_model, len(scales))
@@ -41,12 +44,18 @@ class TimeMixer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['Q'].max(dim=-1).values   # (B, S)
+        x = batch['curves']                   # (B, S, 3, L)
+        B, S, C, L = x.shape
+        x = x.reshape(B, S, C * L)           # (B, S, F)
+        h = self.input_proj(x)               # (B, S, d)
+        # pool along cycle axis: (B, d, S) → pool → (B, d, S//k) → back
+        hT = h.permute(0, 2, 1)             # (B, d, S)
         scale_feats = []
         for pool, mixer, slen in zip(self.pools, self.mixers, self.scale_lens):
-            xs = x if isinstance(pool, nn.Identity) else pool(x.unsqueeze(1)).squeeze(1)
-            scale_feats.append(mixer(xs[:, :slen]))
-        stacked = torch.stack(scale_feats, dim=1)
+            hs = hT if isinstance(pool, nn.Identity) else pool(hT)  # (B, d, slen)
+            hs = hs[:, :, :slen].permute(0, 2, 1).reshape(B, -1)    # (B, slen*d)
+            scale_feats.append(mixer(hs))
+        stacked = torch.stack(scale_feats, dim=1)                    # (B, n_scales, d)
         weights = F.softmax(self.gate(torch.cat(scale_feats, dim=-1)), dim=-1)
         fused   = (stacked * weights.unsqueeze(-1)).sum(dim=1)
         pred    = self.head(fused)

@@ -89,7 +89,7 @@ for job in "${JOBS[@]}"; do
 
     nohup bash -c "
         ${PYTHON} scripts/train.py \
-            --domain '${domain}' --task '${task}' --model '${model}' --gpu '${gpu}' && \
+            --domain '${domain}' --task '${task}' --model '${model}' --gpu '${gpu}' --seed 42 && \
         ${PYTHON} scripts/evaluate.py \
             --domain '${domain}' --task '${task}' --model '${model}' --gpu '${gpu}'
     " > "${log_file}" 2>&1 &

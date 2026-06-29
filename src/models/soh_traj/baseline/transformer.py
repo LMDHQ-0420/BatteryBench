@@ -1,6 +1,6 @@
 """
 soh_traj/transformer.py — Vanilla Transformer for SOH degradation trajectory prediction.
-Input:  batch['Q'] (B, S, N) → capacity_seq = Q.max(dim=-1) → (B, S)
+Input:  batch['curves'] (B, S, 3, L) → per-cycle token (B, S, 3*L)
 Output: (pred:(B, n_future), None)
 """
 
@@ -14,13 +14,14 @@ class Transformer(nn.Module):
         super().__init__()
         m = cfg.get('model', {})
         S        = m.get('n_cycles', 100)
+        L        = cfg.get('data', {}).get('charge_discharge_length', 300)
         n_future = cfg.get('data', {}).get('n_future', 100)
         d_model  = m.get('transformer_d_model', 64)
         n_heads  = m.get('transformer_n_heads', 4)
         n_layers = m.get('transformer_n_layers', 2)
         dropout  = m.get('dropout', 0.1)
 
-        self.input_proj = nn.Linear(1, d_model)
+        self.input_proj = nn.Linear(3 * L, d_model)
         pe = torch.zeros(S, d_model)
         pos = torch.arange(S).unsqueeze(1).float()
         div = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
@@ -40,8 +41,10 @@ class Transformer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['Q'].max(dim=-1).values
-        h = self.input_proj(x.unsqueeze(-1)) + self.pe
+        x = batch['curves']                   # (B, S, 3, L)
+        B, S, C, L = x.shape
+        x = x.reshape(B, S, C * L)
+        h = self.input_proj(x) + self.pe
         h = self.encoder(h)
-        pred = self.head(h.mean(dim=1))  # (B, n_future)
+        pred = self.head(h.mean(dim=1))       # (B, n_future)
         return pred, None

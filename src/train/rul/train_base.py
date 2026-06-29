@@ -2,13 +2,17 @@
 train/rul/train_base.py — RUL 预测标准训练流程
 适用: mlp, gru, bigru, lstm, bilstm, cnn, dlinear, patchtst,
       autoformer, itransformer, transformer, micn, ic2ml, batterymformer
+
+标签: EOL（= RUL + n_cycles），StandardScaler 归一化后训练，inverse_transform 后评估。
+Scaler 保存至 save_path.replace('.pt', '_scaler.pkl')，evaluate.py 加载使用。
 """
 
 import os
+import pickle
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from sklearn.preprocessing import StandardScaler
 
 
 def _to_device(batch, device):
@@ -16,7 +20,15 @@ def _to_device(batch, device):
             for k, v in batch.items()}
 
 
-def train_one_epoch(model, loader, optimizer, device, use_log_rul=False):
+def _collect_eols(loader) -> np.ndarray:
+    eols = []
+    for batch in loader:
+        key = 'eol' if 'eol' in batch else 'rul'
+        eols.extend(batch[key].cpu().numpy().flatten().tolist())
+    return np.array(eols, dtype=np.float32).reshape(-1, 1)
+
+
+def train_one_epoch(model, loader, optimizer, device, scaler):
     model.train()
     criterion = nn.MSELoss()
     total_loss = 0.0
@@ -26,7 +38,13 @@ def train_one_epoch(model, loader, optimizer, device, use_log_rul=False):
         b = _to_device(batch, device)
         out = model(b)
         pred = out[0] if isinstance(out, (tuple, list)) else out
-        loss = criterion(pred.squeeze(-1), b['rul'].squeeze(-1))
+
+        eol_raw = b.get('eol', b['rul'])                            # (B, 1)
+        eol_norm = torch.FloatTensor(
+            scaler.transform(eol_raw.cpu().numpy().reshape(-1, 1))
+        ).to(device)
+
+        loss = criterion(pred.squeeze(-1), eol_norm.squeeze(-1))
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
@@ -35,7 +53,7 @@ def train_one_epoch(model, loader, optimizer, device, use_log_rul=False):
     return total_loss / max(len(loader), 1)
 
 
-def validate(model, loader, device, use_log_rul=False):
+def validate(model, loader, device, scaler):
     model.eval()
     preds, trues = [], []
 
@@ -44,10 +62,9 @@ def validate(model, loader, device, use_log_rul=False):
             b = _to_device(batch, device)
             out = model(b)
             pred = out[0] if isinstance(out, (tuple, list)) else out
-            p = pred.cpu().numpy().flatten()
-            t = b['rul'].cpu().numpy().flatten()
-            if use_log_rul:
-                p, t = np.expm1(np.clip(p, -10, 20)), np.expm1(t)
+            p_norm = pred.cpu().numpy().reshape(-1, 1)
+            p = scaler.inverse_transform(p_norm).flatten()
+            t = b.get('eol', b['rul']).cpu().numpy().flatten()
             preds.extend(p.tolist())
             trues.extend(t.tolist())
 
@@ -55,13 +72,21 @@ def validate(model, loader, device, use_log_rul=False):
 
 
 def train(model, train_loader, val_loader, config, save_path, device='cuda'):
-    """返回加载最优 checkpoint 的模型。"""
-    t_cfg = config.get('train', {})
-    lr          = t_cfg.get('lr', 1e-3)
-    wd          = t_cfg.get('weight_decay', 1e-4)
-    epochs      = t_cfg.get('epochs', 300)
-    patience    = t_cfg.get('patience', 30)
-    use_log_rul = t_cfg.get('use_log_rul', False)
+    """返回加载最优 checkpoint 的模型。Scaler 保存至 save_path 旁。"""
+    t_cfg    = config.get('train', {})
+    lr       = t_cfg.get('lr', 1e-3)
+    wd       = t_cfg.get('weight_decay', 1e-4)
+    epochs   = t_cfg.get('epochs', 300)
+    patience = t_cfg.get('patience', 30)
+
+    # fit EOL scaler on training set
+    eol_train = _collect_eols(train_loader)
+    scaler = StandardScaler()
+    scaler.fit(eol_train)
+    scaler_path = save_path.replace('.pt', '_scaler.pkl')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(scaler_path, 'wb') as f:
+        pickle.dump(scaler, f)
 
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
@@ -69,11 +94,10 @@ def train(model, train_loader, val_loader, config, save_path, device='cuda'):
 
     best_val_mae = float('inf')
     no_improve = 0
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
     for epoch in range(1, epochs + 1):
-        train_loss = train_one_epoch(model, train_loader, optimizer, device, use_log_rul)
-        val_mae    = validate(model, val_loader, device, use_log_rul)
+        train_loss = train_one_epoch(model, train_loader, optimizer, device, scaler)
+        val_mae    = validate(model, val_loader, device, scaler)
         scheduler.step()
 
         if val_mae < best_val_mae:
@@ -92,5 +116,5 @@ def train(model, train_loader, val_loader, config, save_path, device='cuda'):
             break
 
     model.load_state_dict(torch.load(save_path, map_location=device, weights_only=True))
-    print(f'  Best val MAE: {best_val_mae:.2f}')
+    print(f'  Best val MAE (EOL): {best_val_mae:.2f}')
     return model

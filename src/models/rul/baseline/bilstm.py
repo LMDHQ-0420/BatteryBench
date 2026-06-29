@@ -1,6 +1,6 @@
 """
 rul/bilstm.py — BiLSTM for RUL prediction.
-Input:  batch['Q'] (B, S, N)
+Input:  batch['curves'] (B, S, 3, L) → per-cycle token (B, S, 3*L)
 Output: (pred:(B,1), None)
 """
 
@@ -12,11 +12,11 @@ class BiLSTM(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        n_grid  = m.get('n_grid', 200)
+        L       = cfg.get('data', {}).get('charge_discharge_length', 300)
         dropout = m.get('dropout', 0.1)
 
         self.lstm = nn.LSTM(
-            input_size=n_grid, hidden_size=128,
+            input_size=3 * L, hidden_size=128,
             num_layers=2, batch_first=True,
             dropout=dropout, bidirectional=True,
         )
@@ -26,9 +26,10 @@ class BiLSTM(nn.Module):
         )
 
     def forward(self, batch: dict):
-        Q = batch['Q']                   # (B, S, N)
-        _, (h, _) = self.lstm(Q)         # h: (4, B, 128)
-        fwd = h[-2]                      # (B, 128)
-        bwd = h[-1]                      # (B, 128)
-        pred = self.head(torch.cat([fwd, bwd], dim=-1))  # (B, 1)
+        x = batch['curves']                   # (B, S, 3, L)
+        B, S, C, L = x.shape
+        x = x.reshape(B, S, C * L)           # (B, S, 3*L)
+        _, (h, _) = self.lstm(x)
+        fwd = h[-2]; bwd = h[-1]
+        pred = self.head(torch.cat([fwd, bwd], dim=-1))
         return pred, None

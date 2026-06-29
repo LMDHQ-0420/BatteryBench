@@ -1,6 +1,6 @@
 """
 soh_point/bigru.py — BiGRU for SOH single-point estimation.
-Input:  batch['Q'] (B, S, N)
+Input:  batch['curves'] (B, S, 3, L) → per-cycle token (B, S, 3*L)
 Output: (pred:(B,1), None)
 """
 
@@ -12,11 +12,11 @@ class BiGRU(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        n_grid  = m.get('n_grid', 200)
+        L       = cfg.get('data', {}).get('charge_discharge_length', 300)
         dropout = m.get('dropout', 0.1)
 
         self.gru = nn.GRU(
-            input_size=n_grid, hidden_size=128,
+            input_size=3 * L, hidden_size=128,
             num_layers=2, batch_first=True,
             dropout=dropout, bidirectional=True,
         )
@@ -26,7 +26,9 @@ class BiGRU(nn.Module):
         )
 
     def forward(self, batch: dict):
-        Q = batch['Q']
-        _, h = self.gru(Q)
+        x = batch['curves']                   # (B, S, 3, L)
+        B, S, C, L = x.shape
+        x = x.reshape(B, S, C * L)
+        _, h = self.gru(x)
         pred = self.head(torch.cat([h[-2], h[-1]], dim=-1))
         return pred, None
