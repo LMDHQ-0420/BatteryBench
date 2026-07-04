@@ -1,7 +1,8 @@
 """
 soh_traj/ic2ml.py — IC²ML for SOH degradation trajectory prediction.
 Reference: Huang et al., Journal of Power Sources 666 (2026) 239148
-Input: batch['Q']  (B, S, N)
+Input: batch['Q']  (B, S, N) — 未观测圈已由 dataset 置零
+       batch['curve_attn_mask'] (B, S)
 Output: (pred:(B, n_future), None)
 """
 
@@ -92,9 +93,15 @@ class IC2ML(nn.Module):
     def forward(self, batch):
         Q = batch['Q']
         B, S, N = Q.shape
+        mask = batch.get('curve_attn_mask')
+        if mask is None:
+            mask = torch.ones(B, S, device=Q.device, dtype=Q.dtype)
+        kpm = mask <= 0
         q1d    = Q[:, :, ::self.stride]
         h1d    = self.cycle_fcn(q1d) + self.pe[:, :S, :]
-        h1d    = self.inter_attn(h1d).mean(dim=1)
+        h1d    = self.inter_attn(h1d, src_key_padding_mask=kpm)
+        mm     = mask.unsqueeze(-1)
+        h1d    = (h1d * mm).sum(dim=1) / mm.sum(dim=1).clamp(min=1)
         feat2d = self.pool2d(self.inception(Q.unsqueeze(1))).flatten(1)
         feat2d = self.proj2d(feat2d)
         fused  = self.norm(self.cross_attn(feat2d, h1d) + feat2d)

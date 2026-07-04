@@ -37,7 +37,7 @@ def validate(model, loader, device, ref_loader=None):
         ref_Qs, ref_ys = [], []
         with torch.no_grad():
             for batch in ref_loader:
-                ref_Qs.append(batch['Q_single'])
+                ref_Qs.append(batch['Q'])
                 ref_ys.append(batch['soh_point'])
         model.set_reference(
             torch.cat(ref_Qs, dim=0).to(device),

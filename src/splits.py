@@ -142,13 +142,14 @@ def _three_level_split(cfg: dict, seed: int, pool_ds=None) -> List[Dict]:
     }]
 
 
-def make_soh_point_splits(ds, cfg: dict, seed: int = 42) -> List[Dict]:
+def make_battery_splits(ds, cfg: dict, seed: int = 42) -> List[Dict]:
     """
-    SOHPointDataset 专用划分：在电池级别 split，返回 SOHPointDataset 子集列表。
+    电池级划分，适用于所有多样本 dataset（RUL/SOHPoint/SOHTraj）。
 
     每个 split 返回:
-        {'train': SOHPointDataset, 'val': SOHPointDataset, 'test': SOHPointDataset}
+        {'train': <dataset子集>, 'val': <dataset子集>, 'test': <dataset子集或None>}
 
+    在电池级别 split 后展开到样本，保证同一电池所有样本同属 train/val/test（防泄露）。
     three_level 模式下 test 为 None（测试集独立加载）。
     """
     d_cfg      = cfg.get('data', {})
@@ -190,6 +191,10 @@ def make_soh_point_splits(ds, cfg: dict, seed: int = 42) -> List[Dict]:
             'test':  ds.subset_by_battery(sp['test']) if sp['test'] else None,
         })
     return result
+
+
+# 向后兼容别名
+make_soh_point_splits = make_battery_splits
 
 
 def make_splits(ds, cfg: dict, seed: int = 42) -> List[Dict]:

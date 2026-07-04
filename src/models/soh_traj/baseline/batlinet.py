@@ -66,13 +66,11 @@ class BatLiNet(nn.Module):
     def compute_loss(self, batch, device):
         Q    = batch['Q'].to(device)
         y    = batch['soh_traj'][:, :self.n_future].to(device)   # (B, n_future)
-        lens = batch['soh_traj_len'].to(device)                  # (B,)
         B    = Q.shape[0]
 
-        # build mask for valid positions
-        mask = torch.zeros_like(y, dtype=torch.bool)
-        for i, l in enumerate(lens):
-            mask[i, :l] = True
+        # trajectory_mask 只覆盖未来段 [useable, eol)，对齐 BatteryMFormer
+        tmask = batch['trajectory_mask'][:, :self.n_future].to(device)
+        mask = tmask > 0                                          # (B, n_future) bool
 
         pred_intra = self._intra_pred(Q)
         loss_intra = F.mse_loss(pred_intra[mask], y[mask])

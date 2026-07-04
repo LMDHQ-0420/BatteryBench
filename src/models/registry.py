@@ -64,10 +64,12 @@ from src.models.soh_traj.baseline.ic2ml        import IC2ML        as ST_IC2ML
 from src.models.soh_traj.baseline.batlinet     import BatLiNet     as ST_BatLiNet
 from src.models.soh_traj.baseline.batterymformer import BatteryMFormer as ST_BatteryMFormer
 
-# ── Datasets ──────────────────────────────────────────────────────────────────
-from src.data.dataset              import BatteryDataset
-from src.data.dataset_batterymformer import BatteryMFormerDataset
-from src.data.soh_point.dataset    import SOHPointDataset
+# ── Datasets（多样本 + attention mask，对齐 BatteryLife/BatteryMFormer）──────────
+from src.data.cycle_dataset import (
+    RULDataset      as _RULDataset,
+    SOHPointDataset as _SOHPointDataset,
+    SOHTrajDataset  as _SOHTrajDataset,
+)
 
 # ── Train functions ───────────────────────────────────────────────────────────
 from src.train.rul.train_base       import train as _rul_base
@@ -94,166 +96,166 @@ ALL_TASKS = {'rul', 'soh_point', 'soh_traj'}
 _REGISTRY: dict[str, dict[str, ModelSpec]] = {
     'rul': {
         'severson': ModelSpec(
-            build_fn=None, dataset_cls=BatteryDataset, train_fn=_rul_severson,
+            build_fn=None, dataset_cls=_RULDataset, train_fn=_rul_severson,
         ),
         'mlp': ModelSpec(
-            build_fn=lambda cfg: RUL_MLP(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_MLP(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'gru': ModelSpec(
-            build_fn=lambda cfg: RUL_GRU(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_GRU(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'bigru': ModelSpec(
-            build_fn=lambda cfg: RUL_BiGRU(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_BiGRU(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'lstm': ModelSpec(
-            build_fn=lambda cfg: RUL_LSTM(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_LSTM(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'bilstm': ModelSpec(
-            build_fn=lambda cfg: RUL_BiLSTM(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_BiLSTM(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'cnn': ModelSpec(
-            build_fn=lambda cfg: RUL_CNN(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_CNN(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'dlinear': ModelSpec(
-            build_fn=lambda cfg: RUL_DLinear(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_DLinear(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'patchtst': ModelSpec(
-            build_fn=lambda cfg: RUL_PatchTST(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_PatchTST(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'transformer': ModelSpec(
-            build_fn=lambda cfg: RUL_Transformer(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_Transformer(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'autoformer': ModelSpec(
-            build_fn=lambda cfg: RUL_Autoformer(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_Autoformer(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'itransformer': ModelSpec(
-            build_fn=lambda cfg: RUL_iTransformer(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_iTransformer(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'micn': ModelSpec(
-            build_fn=lambda cfg: RUL_MICN(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_MICN(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'timemixer': ModelSpec(
-            build_fn=lambda cfg: RUL_TimeMixer(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_TimeMixer(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'ic2ml': ModelSpec(
-            build_fn=lambda cfg: RUL_IC2ML(cfg), dataset_cls=BatteryDataset, train_fn=_rul_base,
+            build_fn=lambda cfg: RUL_IC2ML(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
         'batlinet': ModelSpec(
-            build_fn=lambda cfg: RUL_BatLiNet(cfg), dataset_cls=BatteryDataset,
+            build_fn=lambda cfg: RUL_BatLiNet(cfg), dataset_cls=_RULDataset,
             train_fn=_rul_batlinet, batch_size_cap=8,
         ),
         'batterymformer': ModelSpec(
-            build_fn=lambda cfg: RUL_BatteryMFormer(cfg), dataset_cls=BatteryMFormerDataset,
+            build_fn=lambda cfg: RUL_BatteryMFormer(cfg), dataset_cls=_RULDataset,
             train_fn=_rul_base,
         ),
     },
     'soh_point': {
         'severson': ModelSpec(
-            build_fn=None, dataset_cls=SOHPointDataset, train_fn=_sp_severson,
+            build_fn=None, dataset_cls=_SOHPointDataset, train_fn=_sp_severson,
         ),
         'mlp': ModelSpec(
-            build_fn=lambda cfg: SP_MLP(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_MLP(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'gru': ModelSpec(
-            build_fn=lambda cfg: SP_GRU(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_GRU(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'bigru': ModelSpec(
-            build_fn=lambda cfg: SP_BiGRU(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_BiGRU(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'lstm': ModelSpec(
-            build_fn=lambda cfg: SP_LSTM(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_LSTM(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'bilstm': ModelSpec(
-            build_fn=lambda cfg: SP_BiLSTM(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_BiLSTM(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'cnn': ModelSpec(
-            build_fn=lambda cfg: SP_CNN(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_CNN(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'dlinear': ModelSpec(
-            build_fn=lambda cfg: SP_DLinear(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_DLinear(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'patchtst': ModelSpec(
-            build_fn=lambda cfg: SP_PatchTST(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_PatchTST(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'transformer': ModelSpec(
-            build_fn=lambda cfg: SP_Transformer(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_Transformer(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'autoformer': ModelSpec(
-            build_fn=lambda cfg: SP_Autoformer(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_Autoformer(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'itransformer': ModelSpec(
-            build_fn=lambda cfg: SP_iTransformer(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_iTransformer(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'micn': ModelSpec(
-            build_fn=lambda cfg: SP_MICN(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_MICN(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'timemixer': ModelSpec(
-            build_fn=lambda cfg: SP_TimeMixer(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_TimeMixer(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'ic2ml': ModelSpec(
-            build_fn=lambda cfg: SP_IC2ML(cfg), dataset_cls=SOHPointDataset, train_fn=_sp_base,
+            build_fn=lambda cfg: SP_IC2ML(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
         'batlinet': ModelSpec(
-            build_fn=lambda cfg: SP_BatLiNet(cfg), dataset_cls=SOHPointDataset,
+            build_fn=lambda cfg: SP_BatLiNet(cfg), dataset_cls=_SOHPointDataset,
             train_fn=_sp_batlinet, batch_size_cap=8,
         ),
         'batterymformer': ModelSpec(
-            build_fn=lambda cfg: SP_BatteryMFormer(cfg), dataset_cls=SOHPointDataset,
+            build_fn=lambda cfg: SP_BatteryMFormer(cfg), dataset_cls=_SOHPointDataset,
             train_fn=_sp_base,
         ),
     },
     'soh_traj': {
         'severson': ModelSpec(
-            build_fn=None, dataset_cls=BatteryDataset, train_fn=_st_severson,
+            build_fn=None, dataset_cls=_SOHTrajDataset, train_fn=_st_severson,
         ),
         'mlp': ModelSpec(
-            build_fn=lambda cfg: ST_MLP(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_MLP(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'gru': ModelSpec(
-            build_fn=lambda cfg: ST_GRU(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_GRU(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'bigru': ModelSpec(
-            build_fn=lambda cfg: ST_BiGRU(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_BiGRU(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'lstm': ModelSpec(
-            build_fn=lambda cfg: ST_LSTM(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_LSTM(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'bilstm': ModelSpec(
-            build_fn=lambda cfg: ST_BiLSTM(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_BiLSTM(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'cnn': ModelSpec(
-            build_fn=lambda cfg: ST_CNN(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_CNN(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'dlinear': ModelSpec(
-            build_fn=lambda cfg: ST_DLinear(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_DLinear(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'patchtst': ModelSpec(
-            build_fn=lambda cfg: ST_PatchTST(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_PatchTST(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'transformer': ModelSpec(
-            build_fn=lambda cfg: ST_Transformer(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_Transformer(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'autoformer': ModelSpec(
-            build_fn=lambda cfg: ST_Autoformer(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_Autoformer(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'itransformer': ModelSpec(
-            build_fn=lambda cfg: ST_iTransformer(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_iTransformer(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'micn': ModelSpec(
-            build_fn=lambda cfg: ST_MICN(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_MICN(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'timemixer': ModelSpec(
-            build_fn=lambda cfg: ST_TimeMixer(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_TimeMixer(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'ic2ml': ModelSpec(
-            build_fn=lambda cfg: ST_IC2ML(cfg), dataset_cls=BatteryDataset, train_fn=_st_base,
+            build_fn=lambda cfg: ST_IC2ML(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'batlinet': ModelSpec(
-            build_fn=lambda cfg: ST_BatLiNet(cfg), dataset_cls=BatteryDataset,
+            build_fn=lambda cfg: ST_BatLiNet(cfg), dataset_cls=_SOHTrajDataset,
             train_fn=_st_batlinet, batch_size_cap=8,
         ),
         'batterymformer': ModelSpec(
-            build_fn=lambda cfg: ST_BatteryMFormer(cfg), dataset_cls=BatteryMFormerDataset,
+            build_fn=lambda cfg: ST_BatteryMFormer(cfg), dataset_cls=_SOHTrajDataset,
             train_fn=_st_base,
         ),
     },

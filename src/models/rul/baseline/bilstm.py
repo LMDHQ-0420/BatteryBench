@@ -1,11 +1,14 @@
 """
 rul/bilstm.py — BiLSTM for RUL prediction.
-Input:  batch['curves'] (B, S, 3, L) → per-cycle token (B, S, 3*L)
+Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
 Output: (pred:(B,1), None)
+每圈拼成 token (3*L)，用 pack_padded_sequence 按已观测圈数取最后有效步。
 """
 
 import torch
 import torch.nn as nn
+
+from src.models._masking import get_inputs, flatten_cycles, seq_lengths
 
 
 class BiLSTM(nn.Module):
@@ -26,10 +29,11 @@ class BiLSTM(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['curves']                   # (B, S, 3, L)
-        B, S, C, L = x.shape
-        x = x.reshape(B, S, C * L)           # (B, S, 3*L)
-        _, (h, _) = self.lstm(x)
-        fwd = h[-2]; bwd = h[-1]
-        pred = self.head(torch.cat([fwd, bwd], dim=-1))
+        x, mask = get_inputs(batch)           # (B, S, 3, L), (B, S)
+        x = flatten_cycles(x)                 # (B, S, 3*L)
+        lengths = seq_lengths(mask).cpu()
+        packed = nn.utils.rnn.pack_padded_sequence(
+            x, lengths, batch_first=True, enforce_sorted=False)
+        _, (h, _) = self.lstm(packed)         # h: (4, B, 128)
+        pred = self.head(torch.cat([h[-2], h[-1]], dim=-1))  # (B, 1)
         return pred, None

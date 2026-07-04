@@ -1,11 +1,14 @@
 """
 rul/cnn.py — 2D CNN for RUL prediction.
-Input:  batch['curves'] (B, S, 3, L) → treated as 3-channel image (B, 3, S, L)
+Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
+        未观测圈已由 dataset 置零。permute → (B, 3, S, L) 作为3通道图像。
 Output: (pred:(B,1), None)
 """
 
 import torch
 import torch.nn as nn
+
+from src.models._masking import get_inputs
 
 
 class CNN(nn.Module):
@@ -25,8 +28,8 @@ class CNN(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['curves']                   # (B, S, 3, L)
-        x = x.permute(0, 2, 1, 3)            # (B, 3, S, L)
+        x, _ = get_inputs(batch)              # (B, S, 3, L)
+        x = x.permute(0, 2, 1, 3)             # (B, 3, S, L)
         h = self.conv(x).reshape(x.shape[0], -1)
         pred = self.head(h)
         return pred, None

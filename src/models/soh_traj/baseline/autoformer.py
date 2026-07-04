@@ -1,7 +1,8 @@
 """
 soh_traj/autoformer.py — Autoformer for SOH degradation trajectory prediction.
 Reference: Wu et al., NeurIPS 2021 (simplified adaptation).
-Input:  batch['curves'] (B, S, 3, L) → per-cycle token (B, S, 3*L)
+Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
+        未观测圈已由 dataset 置零。每圈拼成 token (3*L)。
 Output: (pred:(B, n_future), None)
 """
 
@@ -9,6 +10,8 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from src.models._masking import get_inputs, flatten_cycles
 
 
 class _AutoCorrelation(nn.Module):
@@ -63,9 +66,9 @@ class Autoformer(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        S        = m.get('n_cycles', 100)
+        S        = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
         L        = cfg.get('data', {}).get('charge_discharge_length', 300)
-        n_future = cfg.get('data', {}).get('n_future', 100)
+        n_future = cfg.get('data', {}).get('n_future', 5000)
         d_model  = m.get('autoformer_d_model', 64)
         n_heads  = m.get('autoformer_n_heads', 4)
         n_layers = m.get('autoformer_n_layers', 2)
@@ -89,11 +92,12 @@ class Autoformer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['curves']                   # (B, S, 3, L)
-        B, S, C, L = x.shape
-        x = x.reshape(B, S, C * L)
-        h = self.input_proj(x) + self.pe
+        x, mask = get_inputs(batch)           # (B, S, 3, L), (B, S)
+        x = flatten_cycles(x)                 # (B, S, 3*L)
+        h = self.input_proj(x) + self.pe[:, :x.shape[1], :]
         for layer in self.layers:
             h = layer(h)
-        pred = self.head(h.mean(dim=1))       # (B, n_future)
+        m = mask.unsqueeze(-1)
+        feat = (h * m).sum(1) / m.sum(1).clamp(min=1)
+        pred = self.head(feat)                # (B, n_future)
         return pred, None

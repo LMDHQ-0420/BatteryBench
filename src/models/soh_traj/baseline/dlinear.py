@@ -1,7 +1,8 @@
 """
 soh_traj/dlinear.py — DLinear for SOH degradation trajectory prediction.
 Reference: Zeng et al., AAAI 2023.
-Input:  batch['curves'] (B, S, 3, L) → per-cycle token (B, S, 3*L)
+Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
+        每圈拼成 token (B, S, 3*L)，未观测圈已由 dataset 置零。
 Output: (pred:(B, n_future), None)
 
 Channel-independent: each feature channel maps S→n_future independently,
@@ -11,14 +12,16 @@ then mean-pool over F channels. Params: 2*(S*n_future) only.
 import torch
 import torch.nn as nn
 
+from src.models._masking import get_inputs, flatten_cycles
+
 
 class DLinear(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        S        = m.get('n_cycles', 100)
+        S        = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
         L        = cfg.get('data', {}).get('charge_discharge_length', 300)
-        n_future = cfg.get('data', {}).get('n_future', 100)
+        n_future = cfg.get('data', {}).get('n_future', 5000)
         kernel   = m.get('dlinear_kernel', 25)
 
         pad = kernel // 2
@@ -28,10 +31,10 @@ class DLinear(nn.Module):
         self.w_seasonal = nn.Linear(S, n_future)
 
     def forward(self, batch: dict):
-        x = batch['curves']                   # (B, S, 3, L)
-        B, S, C, L = x.shape
-        x = x.reshape(B, S, C * L)           # (B, S, F)
-        xT = x.permute(0, 2, 1)             # (B, F, S)
+        x, _ = get_inputs(batch)              # (B, S, 3, L)
+        x = flatten_cycles(x)                 # (B, S, F)
+        B, S = x.shape[0], x.shape[1]
+        xT = x.permute(0, 2, 1)              # (B, F, S)
         trend = self.avg(xT)
         if trend.shape[-1] != S:
             trend = trend[:, :, :S]

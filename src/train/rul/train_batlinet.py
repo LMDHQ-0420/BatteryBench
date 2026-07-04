@@ -41,7 +41,7 @@ def validate(model, loader, device, use_log_rul=False, ref_loader=None):
         with torch.no_grad():
             for batch in ref_loader:
                 ref_Qs.append(batch['Q'])
-                ref_ys.append(batch['rul'])
+                ref_ys.append(batch['eol'])          # reference y = EOL 绝对值
         model.set_reference(
             torch.cat(ref_Qs, dim=0).to(device),
             torch.cat(ref_ys, dim=0).to(device),
@@ -54,7 +54,7 @@ def validate(model, loader, device, use_log_rul=False, ref_loader=None):
             out = model(b)
             pred = out[0] if isinstance(out, (tuple, list)) else out
             p = pred.cpu().numpy().flatten()
-            t = b['rul'].cpu().numpy().flatten()
+            t = b['eol'].cpu().numpy().flatten()     # 指标基于 EOL
             if use_log_rul:
                 p, t = np.expm1(np.clip(p, -10, 20)), np.expm1(t)
             preds.extend(p.tolist())

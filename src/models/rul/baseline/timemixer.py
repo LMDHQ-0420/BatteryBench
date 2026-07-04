@@ -1,7 +1,8 @@
 """
 rul/timemixer.py — TimeMixer for RUL prediction.
 Reference: Wang et al., ICLR 2024 (simplified adaptation).
-Input:  batch['curves'] (B, S, 3, L) → per-cycle token (B, S, 3*L)
+Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
+        未观测圈已由 dataset 置零。每圈拼成 token (3*L)，沿 cycle 轴多尺度混合。
 Output: (pred:(B,1), None)
 """
 
@@ -9,12 +10,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from src.models._masking import get_inputs, flatten_cycles
+
 
 class TimeMixer(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        S       = m.get('n_cycles', 100)
+        S       = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
         L       = cfg.get('data', {}).get('charge_discharge_length', 300)
         d_model = m.get('timemixer_d_model', 64)
         dropout = m.get('dropout', 0.1)
@@ -44,9 +47,9 @@ class TimeMixer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['curves']                   # (B, S, 3, L)
-        B, S, C, L = x.shape
-        x = x.reshape(B, S, C * L)           # (B, S, F)
+        x, _ = get_inputs(batch)              # (B, S, 3, L)  未观测圈已置零
+        B = x.shape[0]
+        x = flatten_cycles(x)                 # (B, S, F)
         h = self.input_proj(x)               # (B, S, d)
         # pool along cycle axis: (B, d, S) → pool → (B, d, S//k) → back
         hT = h.permute(0, 2, 1)             # (B, d, S)

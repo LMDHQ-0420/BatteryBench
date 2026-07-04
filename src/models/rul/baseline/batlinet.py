@@ -99,8 +99,8 @@ class BatLiNet(nn.Module):
         Joint training loss (Eq. 9).
         Uses at most max_pairs random pairs to avoid OOM on large batches.
         """
-        Q = batch['Q'].to(device)       # (B, S, N)
-        y = batch['rul'].to(device)     # (B, 1)
+        Q = batch['Q'].to(device)                       # (B, S, N)
+        y = batch['labels'].to(device)                  # (B, 1) — EOL 绝对值
         B = Q.shape[0]
 
         # intra-cell loss

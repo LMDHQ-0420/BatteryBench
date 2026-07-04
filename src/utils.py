@@ -87,13 +87,35 @@ def is_matr_cell(cell: dict) -> bool:
 
 # ── SOH / RUL ──────────────────────────────────────────────────────────────
 
+def get_soc_interval(cell: dict) -> float:
+    """
+    读取充放电 SOC 区间宽度，用于 SOH 归一化（对齐 BatteryLife）。
+    SOH = max(Qd) / nom / soc_interval。区间为 0（满充满放）时返回 1.0。
+    """
+    soc = cell.get('SOC_interval')
+    if not soc or len(soc) < 2:
+        return 1.0
+    iv = float(soc[1]) - float(soc[0])
+    return iv if abs(iv) > 1e-6 else 1.0
+
+
 def compute_soh_series(cell: dict) -> np.ndarray:
     """
     计算全寿命 SOH 序列，shape (n_cycles,)。
-    SOH_i = Q_discharge_i / Q_nominal
+    SOH_i = max(Q_discharge_i) / Q_nominal / SOC_interval  （对齐 BatteryLife）
+
+    SOC_interval 用于修正部分区间充放电的数据集（如 ISU-ILCC，区间 0.16~0.96），
+    满充满放数据集其值为 1.0，不受影响。
     """
+    # CALB 等：pkl 只含早期曲线，全寿命 SOH 由汇总表注入 full_soh_series
+    # （见 src/preprocess/augment_calb_soh.py），优先使用。
+    full = cell.get('full_soh_series')
+    if full is not None and len(full) > 0:
+        return np.clip(np.asarray(full, dtype=float), 0.0, 1.0)
+
     q_nom = cell.get('nominal_capacity_in_Ah')
     cycle_data = cell['cycle_data']
+    soc_interval = get_soc_interval(cell)
 
     # 若 nominal_capacity 为 None，用第1圈最大放电容量
     if q_nom is None or q_nom <= 0:
@@ -107,34 +129,46 @@ def compute_soh_series(cell: dict) -> np.ndarray:
             q_i = float(max(q_dis))
         else:
             q_i = 0.0
-        soh_list.append(np.clip(q_i / q_nom, 0.0, 1.0))
+        soh_list.append(np.clip(q_i / q_nom / soc_interval, 0.0, 1.0))
 
     return np.array(soh_list, dtype=float)
+
+
+def compute_eol(
+    soh_series: np.ndarray,
+    threshold: float = 0.80,
+    fallback_total: bool = False,
+) -> Optional[int]:
+    """
+    计算 EOL（总寿命，1-based 圈数）= 首次 SOH < threshold 的圈。
+
+    对齐 BatteryLife：默认 fallback_total=False，即未跌破阈值的电池
+    （实验未跑到退化终点）直接排除，返回 None，避免噪声标签。
+    """
+    below = np.where(soh_series < threshold)[0]
+    if len(below) > 0:
+        return int(below[0]) + 1  # 1-based
+    if fallback_total:
+        return len(soh_series)
+    return None
 
 
 def compute_rul(
     soh_series: np.ndarray,
     threshold: float = 0.80,
     obs_cycle: int = 100,
-    fallback_total: bool = True,
+    fallback_total: bool = False,
 ) -> Optional[int]:
     """
     计算 RUL = t_EOL - obs_cycle。
 
-    t_EOL 确定策略：
-    1. 首先尝试找首次 SOH < threshold 的圈数（标准定义）
-    2. 若找不到且 fallback_total=True，用 total_cycles 作为 t_EOL
-       （适用于 MATR 等实验终止即寿命终止的数据集）
-    若 RUL <= 0 返回 None。
+    t_EOL = compute_eol(...)（首次 SOH < threshold 的圈）。
+    对齐 BatteryLife：默认 fallback_total=False，未跌破阈值的电池排除。
+    若 EOL 未定义或 RUL <= 0 返回 None。
     """
-    below = np.where(soh_series < threshold)[0]
-    if len(below) > 0:
-        t_eol = int(below[0]) + 1  # 1-based
-    elif fallback_total:
-        t_eol = len(soh_series)
-    else:
+    t_eol = compute_eol(soh_series, threshold=threshold, fallback_total=fallback_total)
+    if t_eol is None:
         return None
-
     rul = t_eol - obs_cycle
     if rul <= 0:
         return None
@@ -287,3 +321,25 @@ def build_curves_matrix(
             cycle_data[i], nom, charge_discharge_length
         )
     return curves
+
+
+def build_cycle_curve_tensor(
+    cell: dict,
+    early_cycle: int = 100,
+    charge_discharge_length: int = 300,
+    num_var: int = 3,
+) -> tuple:
+    """
+    构建早期充放电曲线张量，供「多样本 + attention mask」dataset 使用。
+
+    返回:
+        curves      : (early_cycle, num_var, L)  前 early_cycle 圈曲线，不足补零
+        valid_cycles: int                        实际有效圈数 (min(early_cycle, 总圈数))
+
+    对齐 BatteryLife：固定 early_cycle 长度，样本按观测窗口用 curve_attn_mask 裁剪。
+    """
+    cycle_data = cell.get('cycle_data', [])
+    valid_cycles = min(early_cycle, len(cycle_data))
+    curves = build_curves_matrix(cell, n_cycles=early_cycle,
+                                 charge_discharge_length=charge_discharge_length)
+    return curves, valid_cycles

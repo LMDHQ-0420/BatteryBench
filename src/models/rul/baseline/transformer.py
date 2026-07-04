@@ -1,6 +1,7 @@
 """
 rul/transformer.py — Vanilla Transformer for RUL prediction.
-Input:  batch['curves'] (B, S, 3, L) → per-cycle token (B, S, 3*L)
+Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
+        未观测圈已由 dataset 置零。每圈拼成 token (3*L)。
 Output: (pred:(B,1), None)
 """
 
@@ -8,12 +9,14 @@ import math
 import torch
 import torch.nn as nn
 
+from src.models._masking import get_inputs, flatten_cycles, key_padding_mask
+
 
 class Transformer(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        S        = m.get('n_cycles', 100)
+        S        = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
         L        = cfg.get('data', {}).get('charge_discharge_length', 300)
         d_model  = m.get('transformer_d_model', 64)
         n_heads  = m.get('transformer_n_heads', 4)
@@ -41,10 +44,12 @@ class Transformer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['curves']                   # (B, S, 3, L)
-        B, S, C, L = x.shape
-        x = x.reshape(B, S, C * L)           # (B, S, 3*L)
-        h = self.input_proj(x) + self.pe      # (B, S, d)
-        h = self.encoder(h)                   # (B, S, d)
-        pred = self.head(h.mean(dim=1))       # (B, 1)
+        x, mask = get_inputs(batch)           # (B, S, 3, L), (B, S)
+        x = flatten_cycles(x)                 # (B, S, 3*L)
+        h = self.input_proj(x) + self.pe[:, :x.shape[1], :]  # (B, S, d)
+        kpm = key_padding_mask(mask)          # (B, S) bool, True=屏蔽
+        h = self.encoder(h, src_key_padding_mask=kpm)        # (B, S, d)
+        m = mask.unsqueeze(-1)                # (B, S, 1)
+        feat = (h * m).sum(1) / m.sum(1).clamp(min=1)        # masked mean
+        pred = self.head(feat)                # (B, 1)
         return pred, None

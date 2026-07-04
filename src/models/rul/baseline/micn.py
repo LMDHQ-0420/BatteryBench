@@ -1,13 +1,16 @@
 """
 rul/micn.py — MICN (Multi-scale Isometric Convolution Network) for RUL prediction.
 Reference: Wang et al., AAAI 2023.
-Input:  batch['curves'] (B, S, 3, L) → per-cycle token (B, S, 3*L)
+Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
+        未观测圈已由 dataset 置零。每圈拼成 token (3*L)。
 Output: (pred:(B,1), None)
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from src.models._masking import get_inputs, flatten_cycles
 
 
 class _IsometricConv(nn.Module):
@@ -26,7 +29,6 @@ class MICN(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        S       = m.get('n_cycles', 100)
         L       = cfg.get('data', {}).get('charge_discharge_length', 300)
         d_model = m.get('micn_d_model', 64)
         scales  = m.get('micn_scales', [3, 7, 13])
@@ -43,11 +45,10 @@ class MICN(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['curves']                   # (B, S, 3, L)
-        B, S, C, L = x.shape
-        x = x.reshape(B, S, C * L)           # (B, S, 3*L)
+        x, _ = get_inputs(batch)             # (B, S, 3, L)
+        x = flatten_cycles(x)                # (B, S, 3*L)  未观测圈已是0
         h = self.input_proj(x)               # (B, S, d)
-        h = h.permute(0, 2, 1)              # (B, d, S)
+        h = h.permute(0, 2, 1)               # (B, d, S)
         feats  = [conv(h) for conv in self.convs]
         pooled = [f.mean(dim=-1) for f in feats]
         fused  = self.merge(torch.cat(pooled, dim=-1))

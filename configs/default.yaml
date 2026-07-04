@@ -14,9 +14,12 @@ train:
 data:
   task: rul                # rul | soh_point | soh_traj
   n_future: 5000            # soh_traj 预测步数（完整退化轨迹，zero-pad 到此长度）
-  soh_threshold: 0.80
+  soh_threshold: 0.80       # EOL 阈值（CALB 域覆盖为 0.90）
+  eol_threshold: 0.80       # soh_traj 轨迹归一化阈值 (SOH-thr)/(1-thr)
   n_cycles: 100
   n_grid: 200
+  early_cycle: 100          # 观测窗口上限（多样本 seq_len..early_cycle）
+  seq_len: 1                # 观测窗口下限（每电池从看1圈到看early_cycle圈各出一个样本）
   charge_discharge_length: 300
   val_ratio: 0.1
   test_ratio: 0.2

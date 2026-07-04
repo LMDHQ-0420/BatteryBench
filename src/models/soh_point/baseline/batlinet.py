@@ -1,8 +1,9 @@
 """
 batlinet.py — BatLiNet adapted for SOH point estimation.
 Reference: Zhang et al., Nature Machine Intelligence 7 (2025) 270-277.
-Input: batch['Q_single'] (B, N) — single-cycle Q(V) curve
-Output: (pred:(B,1), None)
+Input: batch['Q'] (B, S, N) — 未观测圈已由 dataset 置零
+       batch['curve_attn_mask'] (B, S)
+Output: (pred:(B,1), None)  — 预测最后观测圈的 SOH
 """
 
 import torch
@@ -11,41 +12,38 @@ import torch.nn.functional as F
 
 
 class _CNNEncoder(nn.Module):
-    def __init__(self, n_grid: int, d_model: int, dropout: float):
+    """(B, S, N) Q-feature map → (B, d) embedding via Conv2d."""
+    def __init__(self, n_cycles: int, n_grid: int, d_model: int, dropout: float):
         super().__init__()
         self.conv = nn.Sequential(
-            nn.Conv1d(1, 32, kernel_size=7, padding=3),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-            nn.Conv1d(32, 64, kernel_size=7, padding=3),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool1d(8),
+            nn.Conv2d(1, 32, kernel_size=(3, 7), padding=(1, 3)),
+            nn.BatchNorm2d(32), nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=(3, 7), padding=(1, 3)),
+            nn.BatchNorm2d(64), nn.ReLU(),
+            nn.AdaptiveAvgPool2d((4, 8)),
         )
         self.fc = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(64 * 8, d_model),
-            nn.LayerNorm(d_model),
-            nn.ReLU(),
-            nn.Dropout(dropout),
+            nn.Linear(64 * 4 * 8, d_model),
+            nn.LayerNorm(d_model), nn.ReLU(), nn.Dropout(dropout),
         )
 
     def forward(self, x):
-        h = self.conv(x.unsqueeze(1))   # (B, 1, N) → Conv1d
-        return self.fc(h)
+        return self.fc(self.conv(x.unsqueeze(1)))
 
 
 class BatLiNet(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
+        n_cycles  = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
         n_grid    = m.get('n_grid', 200)
         d_model   = m.get('batlinet_d_model', 64)
         dropout   = m.get('dropout', 0.1)
         self.lam  = m.get('batlinet_lambda', 1.0)
         self.alpha = m.get('batlinet_alpha', 0.5)
 
-        self.encoder = _CNNEncoder(n_grid, d_model, dropout)
+        self.encoder = _CNNEncoder(n_cycles, n_grid, d_model, dropout)
         self.head = nn.Linear(d_model, 1, bias=True)
 
         self._ref_Q = None
@@ -58,8 +56,8 @@ class BatLiNet(nn.Module):
         return self.head(self.encoder(dQ))
 
     def compute_loss(self, batch, device):
-        Q = batch['Q_single'].to(device)    # (B, N)
-        y = batch['soh_point'].to(device)
+        Q = batch['Q'].to(device)               # (B, S, N)
+        y = batch['soh_point'].to(device)       # (B, 1)
         B = Q.shape[0]
 
         pred_intra = self._intra_pred(Q)
@@ -73,24 +71,19 @@ class BatLiNet(nn.Module):
         for i in range(B):
             for j in range(B):
                 if i != j:
-                    all_i.append(i)
-                    all_j.append(j)
-
+                    all_i.append(i); all_j.append(j)
         n_pairs = len(all_i)
         if n_pairs > max_pairs:
             idx = torch.randperm(n_pairs)[:max_pairs]
             all_i = [all_i[k] for k in idx.tolist()]
             all_j = [all_j[k] for k in idx.tolist()]
-
         idx_i = torch.tensor(all_i, device=device)
         idx_j = torch.tensor(all_j, device=device)
 
         dQ = Q[idx_i] - Q[idx_j]
         dy = y[idx_i] - y[idx_j]
-
         pred_inter = self._inter_pred(dQ)
         loss_inter = F.mse_loss(pred_inter, dy)
-
         return loss_intra + self.lam * loss_inter
 
     def set_reference(self, Q_ref: torch.Tensor, y_ref: torch.Tensor):
@@ -102,7 +95,7 @@ class BatLiNet(nn.Module):
         self._ref_y = None
 
     def forward(self, batch):
-        Q = batch['Q_single']            # (B, N)
+        Q = batch['Q']                          # (B, S, N)
         device = Q.device
         B = Q.shape[0]
 
@@ -110,20 +103,16 @@ class BatLiNet(nn.Module):
 
         Q_ref = batch.get('Q_ref', self._ref_Q)
         y_ref = batch.get('y_ref', self._ref_y)
-
         if Q_ref is None or y_ref is None:
             return pred_intra, None
 
         Q_ref = Q_ref.to(device)
         y_ref = y_ref.to(device)
         R = Q_ref.shape[0]
-
         max_ref = 32
         if R > max_ref:
             idx = torch.randperm(R, device=device)[:max_ref]
-            Q_ref = Q_ref[idx]
-            y_ref = y_ref[idx]
-            R = max_ref
+            Q_ref = Q_ref[idx]; y_ref = y_ref[idx]; R = max_ref
 
         pred_inter_list = []
         for b_idx in range(B):
@@ -132,7 +121,6 @@ class BatLiNet(nn.Module):
             pred_diff = self._inter_pred(dQ).view(R, 1)
             pred_inter_b = (pred_diff + y_ref).median(dim=0).values.unsqueeze(0)
             pred_inter_list.append(pred_inter_b)
-
         pred_inter = torch.cat(pred_inter_list, dim=0)
         pred = self.alpha * pred_intra + (1 - self.alpha) * pred_inter
         return pred, None

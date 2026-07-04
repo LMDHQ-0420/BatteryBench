@@ -1,6 +1,9 @@
 """
-evaluate/rul/evaluate.py — RUL 预测评估
+evaluate/rul/evaluate.py — RUL/BLP 预测评估
 输出: mae, mse, rmse, mape, acc15
+
+对齐 BatteryLife：预测目标为 EOL（绝对总寿命）。模型输出经 scaler 反归一化到 EOL，
+指标直接在 EOL 上计算（MAPE = |pred_eol - true_eol| / true_eol）。
 """
 
 import pickle
@@ -31,20 +34,20 @@ def evaluate(
 
     with torch.no_grad():
         for batch in loader:
-            true_rul = batch['rul'].numpy().flatten()
-            true_eol = batch.get('eol', batch['rul']).numpy().flatten()
+            # 真值 EOL（绝对总寿命）
+            true_eol = batch.get('eol', batch.get('labels')).numpy().flatten()
             b = {k: v.to(device) if isinstance(v, torch.Tensor) else v
                  for k, v in batch.items()}
             out = model(b)
             pred = (out[0] if isinstance(out, (tuple, list)) else out).cpu().numpy().flatten()
 
             if scaler is not None:
-                pred_eol = scaler.inverse_transform(pred.reshape(-1, 1)).flatten()
-                n_cycles = true_eol - true_rul
-                pred = pred_eol - n_cycles
+                pred = scaler.inverse_transform(pred.reshape(-1, 1)).flatten()
+            if use_log_rul:
+                pred = np.expm1(pred)
 
             preds.extend(pred.tolist())
-            trues.extend(true_rul.tolist())
+            trues.extend(true_eol.tolist())
 
     preds = np.array(preds, dtype=np.float64)
     trues = np.array(trues, dtype=np.float64)

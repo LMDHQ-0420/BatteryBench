@@ -8,7 +8,8 @@ Adaptations from original:
   1. Task: trajectory forecasting → SOH trajectory (n_future steps)
   2. ACDecoder LLM: Qwen3-0.6B → lightweight hash-based text embedding
   3. No TrajectoryDecoder / recovery loss
-  4. Input: X ∈ R^(S×L×4) [V,I,Q,SOC] from BatteryMFormerDataset
+  4. Input: unified contract — batch['cycle_curve_data'] (B,S,3,L) [V,I,Q]
+     + batch['curve_attn_mask'] (B,S); unobserved cycles already zeroed.
 
 Head: Linear(d*2, n_future) → (B, n_future)
 """
@@ -17,6 +18,8 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from ..._masking import get_inputs, key_padding_mask
 
 
 # ─────────────────────────── text embedding ──────────────────────────────────
@@ -81,7 +84,7 @@ class SOCViewEncoder(nn.Module):
         self.M = M
         self.P = P
         self.patch_conv = nn.Conv1d(
-            in_channels=4,       # V, I, Q, SOC channels
+            in_channels=3,       # V, I, Q channels
             out_channels=d,
             kernel_size=P,
             stride=P,            # non-overlapping patches
@@ -97,11 +100,11 @@ class SOCViewEncoder(nn.Module):
         )
         self.temporal_enc = nn.TransformerEncoder(enc_layer, num_layers=1)
 
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
-        """X: (B, S, L, 4) → T_soc: (B, M, d)"""
+    def forward(self, X: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
+        """X: (B, S, L, 3), mask: (B, S) → T_soc: (B, M, d)"""
         B, S, L, C = X.shape
-        # reshape to (B*S, 4, L) for Conv1D
-        x = X.view(B * S, L, C).permute(0, 2, 1)   # (B*S, 4, L)
+        # reshape to (B*S, 3, L) for Conv1D
+        x = X.view(B * S, L, C).permute(0, 2, 1)   # (B*S, 3, L)
         z = self.patch_conv(x)                        # (B*S, d, M)
         z = z.permute(0, 2, 1)                        # (B*S, M, d)
         z = self.patch_ln(z)
@@ -110,8 +113,24 @@ class SOCViewEncoder(nn.Module):
         # for each SOC interval m, encode across S cycles
         z_perm = z.permute(0, 2, 1, 3)               # (B, M, S, d)
         z_flat = z_perm.reshape(B * self.M, S, -1)    # (B*M, S, d)
-        t = self.temporal_enc(z_flat)                  # (B*M, S, d)
-        t = t.mean(dim=1)                              # (B*M, d) — pool over S
+
+        kpm = None
+        if mask is not None:
+            # expand per-cycle mask over the M SOC intervals
+            kpm = key_padding_mask(mask).unsqueeze(1).expand(B, self.M, S)
+            kpm = kpm.reshape(B * self.M, S)          # (B*M, S)
+            # guard: a fully-masked row would break attention; keep ≥1 valid
+            kpm = kpm & ~(kpm.all(dim=1, keepdim=True))
+        t = self.temporal_enc(z_flat, src_key_padding_mask=kpm)  # (B*M, S, d)
+
+        # masked mean over observed cycles
+        if mask is not None:
+            w = mask.unsqueeze(1).expand(B, self.M, S).reshape(B * self.M, S)
+            w = w.to(t.dtype).unsqueeze(-1)           # (B*M, S, 1)
+            denom = w.sum(dim=1).clamp(min=1e-6)
+            t = (t * w).sum(dim=1) / denom             # (B*M, d)
+        else:
+            t = t.mean(dim=1)                          # (B*M, d)
         T_soc = t.view(B, self.M, -1)                 # (B, M, d)
         return T_soc
 
@@ -131,8 +150,8 @@ class TemporalViewEncoder(nn.Module):
 
     def __init__(self, L: int, d: int, n_heads: int, dropout: float):
         super().__init__()
-        # project L*4 → d
-        self.cycle_proj = nn.Linear(L * 4, d)
+        # project L*3 → d
+        self.cycle_proj = nn.Linear(L * 3, d)
         self.cycle_ln   = nn.LayerNorm(d)
 
         # intra-cycle encoder (1-layer transformer)
@@ -156,13 +175,17 @@ class TemporalViewEncoder(nn.Module):
         pe[:, 1::2] = torch.cos(pos * div)
         return pe.unsqueeze(0)  # (1, S, d)
 
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
-        """X: (B, S, L, 4) → H_temporal: (B, S, d)"""
+    def forward(self, X: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
+        """X: (B, S, L, 3), mask: (B, S) → H_temporal: (B, S, d)"""
         B, S, L, C = X.shape
-        x_flat = X.view(B, S, L * C)                  # (B, S, L*4)
+        x_flat = X.view(B, S, L * C)                  # (B, S, L*3)
         h = self.cycle_ln(self.cycle_proj(x_flat))     # (B, S, d)
         h = h + self._pe(S, h.shape[-1], h.device)
-        h = self.intra_enc(h)                          # (B, S, d)
+        kpm = None
+        if mask is not None:
+            kpm = key_padding_mask(mask)               # (B, S) bool
+            kpm = kpm & ~(kpm.all(dim=1, keepdim=True))
+        h = self.intra_enc(h, src_key_padding_mask=kpm)  # (B, S, d)
         return h
 
 
@@ -295,8 +318,9 @@ class BatteryMFormer(nn.Module):
     BatteryMFormer adapted for SOH trajectory prediction.
 
     Input batch keys:
-      'X':          (B, S, L, 4)  — V/I/Q/SOC
-      'aging_text': list of B strings
+      'cycle_curve_data': (B, S, 3, L)  — V/I/Q, unobserved cycles zeroed
+      'curve_attn_mask':  (B, S)        — 1=observed, 0=unobserved
+      'cell_id':          list of B strings — optional aging-condition proxy
 
     Output: (pred: (B, n_future), None)
     """
@@ -325,12 +349,21 @@ class BatteryMFormer(nn.Module):
             nn.Dropout(dropout), nn.Linear(d * 2, n_future))
 
     def forward(self, batch: dict):
-        X    = batch['X']                    # (B, S, L, 4)
-        texts = batch.get('aging_text', ['unknown'] * X.shape[0])
+        x, mask = get_inputs(batch)              # (B, S, 3, L), (B, S)
+        X = x.permute(0, 1, 3, 2).contiguous()   # (B, S, L, 3)
+        B = X.shape[0]
 
-        T_soc      = self.soc_enc(X)         # (B, M, d)
-        T_temporal = self.temp_enc(X)        # (B, S, d)
-        e_ac       = self.ac_emb(texts)      # (B, d)
+        cid = batch.get('cell_id')
+        if cid is None:
+            texts = ['unknown'] * B
+        elif isinstance(cid, (list, tuple)):
+            texts = [str(c) for c in cid]
+        else:
+            texts = [str(cid)] * B
+
+        T_soc      = self.soc_enc(X, mask)       # (B, M, d)
+        T_temporal = self.temp_enc(X, mask)      # (B, S, d)
+        e_ac       = self.ac_emb(texts)          # (B, d)
 
         H = self.decoder(T_temporal, T_soc, e_ac)   # (B, n_queries, d)
         h = H.mean(dim=1)                            # (B, d)

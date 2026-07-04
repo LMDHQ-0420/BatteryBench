@@ -3,9 +3,7 @@ data:
   n_splits: 3
   val_ratio: 0.2
   test_ratio: 0.2
-  n_cycles: 30        # CALB cells have only 100 cycles total; use 30 as obs window
-  soh_threshold: 0.75 # starting SOH is already ~0.77-0.87; use 0.75 as EOL threshold
-
-model:
-  n_cycles: 30
-  n_grid: 200
+  # CALB 全寿命 SOH 由汇总表注入 full_soh_series（见 augment_calb_soh.py）。
+  # 对齐 BatteryMFormer：CALB EOL 阈值用 0.90（其它域 0.80）。
+  soh_threshold: 0.90
+  eol_threshold: 0.90

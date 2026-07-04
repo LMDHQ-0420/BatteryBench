@@ -1,21 +1,32 @@
+"""
+train/soh_point/train_severson.py — Severson ElasticNet for SOH point estimation.
+特征: ΔQ(V) = Q[最后观测圈] - Q[第10圈] 的 variance/min/mean。
+标签: 最后观测圈的 SOH。
+"""
+
 import os
 import pickle
 import numpy as np
 from sklearn.linear_model import ElasticNetCV
 from sklearn.preprocessing import StandardScaler
 
-from src.data.soh_point.dataset import SOHPointDataset
+
+def _delta_q_feature(Q: np.ndarray, useable: int) -> list:
+    late = Q[useable - 1]
+    early = Q[min(9, useable - 1)]
+    dq = late - early
+    return [float(np.var(dq)), float(np.min(dq)), float(np.mean(dq))]
 
 
-def _extract_features(dataset: SOHPointDataset) -> np.ndarray:
+def _extract_features(dataset) -> np.ndarray:
     feats = []
     for i in range(len(dataset)):
-        dq = dataset[i]['delta_q'].numpy()
-        feats.append([float(np.var(dq)), float(np.min(dq)), float(np.mean(dq))])
+        s = dataset[i]
+        feats.append(_delta_q_feature(s['Q'].numpy(), int(s['useable_cycle'])))
     return np.array(feats, dtype=float)
 
 
-def _get_targets(dataset: SOHPointDataset) -> np.ndarray:
+def _get_targets(dataset) -> np.ndarray:
     return np.array([float(dataset[i]['soh_point'].item()) for i in range(len(dataset))])
 
 
@@ -25,12 +36,11 @@ def _metrics(preds, y_test) -> dict:
     rmse = float(np.sqrt(mse))
     mask = y_test > 1e-6
     rel_err = np.abs(preds[mask] - y_test[mask]) / y_test[mask]
-    mape  = float(np.mean(rel_err))        if mask.any() else float('nan')
+    mape  = float(np.mean(rel_err)) if mask.any() else float('nan')
     return {'mae': mae, 'mse': mse, 'rmse': rmse, 'mape': mape}
 
 
-def train(train_ds: SOHPointDataset, test_ds: SOHPointDataset,
-          save_path: str = None) -> dict:
+def train(train_ds, test_ds, save_path: str = None) -> dict:
     X_train, y_train = _extract_features(train_ds), _get_targets(train_ds)
     X_test,  y_test  = _extract_features(test_ds),  _get_targets(test_ds)
 
@@ -49,7 +59,7 @@ def train(train_ds: SOHPointDataset, test_ds: SOHPointDataset,
     return _metrics(model.predict(X_test), y_test)
 
 
-def evaluate(test_ds: SOHPointDataset, save_path: str) -> dict:
+def evaluate(test_ds, save_path: str) -> dict:
     with open(save_path, 'rb') as f:
         obj = pickle.load(f)
     scaler, model = obj['scaler'], obj['model']

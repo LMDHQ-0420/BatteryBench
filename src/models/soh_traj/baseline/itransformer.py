@@ -1,21 +1,24 @@
 """
 soh_traj/itransformer.py — iTransformer for SOH degradation trajectory prediction.
 Reference: Liu et al., ICLR 2024.
-Input:  batch['curves'] (B, S, 3, L) → each channel as token (B, 3, S*L)
+Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
+        未观测圈已由 dataset 置零。倒置为每通道一个 token (B, 3, S*L)。
 Output: (pred:(B, n_future), None)
 """
 
 import torch
 import torch.nn as nn
 
+from src.models._masking import get_inputs
+
 
 class iTransformer(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        S        = m.get('n_cycles', 100)
+        S        = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
         L        = cfg.get('data', {}).get('charge_discharge_length', 300)
-        n_future = cfg.get('data', {}).get('n_future', 100)
+        n_future = cfg.get('data', {}).get('n_future', 5000)
         d_model  = m.get('itransformer_d_model', 64)
         n_heads  = m.get('itransformer_n_heads', 4)
         n_layers = m.get('itransformer_n_layers', 2)
@@ -34,7 +37,7 @@ class iTransformer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['curves']                   # (B, S, 3, L)
+        x, _ = get_inputs(batch)              # (B, S, 3, L)  未观测圈已置零
         B, S, C, L = x.shape
         x = x.permute(0, 2, 1, 3).reshape(B, C, S * L)  # (B, 3, S*L)
         h = self.var_proj(x)                  # (B, 3, d)

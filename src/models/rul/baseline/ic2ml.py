@@ -9,8 +9,9 @@ Architecture:
   Cross-modal: CrossAttention(2D query, 1D key/value) → (B, d)
   Head: Linear → (B, 1)
 
-Input: batch['Q']  (B, S, N)
-Output: (pred:(B,1), None)
+Input: batch['Q']  (B, S, N) — 未观测圈已由 dataset 置零
+       batch['curve_attn_mask'] (B, S)
+Output: (pred:(B,1), None)  — RUL 任务预测 EOL 绝对值
 """
 
 import math
@@ -122,13 +123,19 @@ class IC2ML(nn.Module):
     def forward(self, batch):
         Q = batch['Q']                          # (B, S, N)
         B, S, N = Q.shape
+        mask = batch.get('curve_attn_mask')     # (B, S) 1=观测
+        if mask is None:
+            mask = torch.ones(B, S, device=Q.device, dtype=Q.dtype)
+        kpm = mask <= 0                          # (B,S) True=屏蔽
 
         # --- 1D path ---
         q1d = Q[:, :, ::self.stride]            # (B, S, pts)
         h1d = self.cycle_fcn(q1d)               # (B, S, d)
         h1d = h1d + self.pe[:, :S, :]
-        h1d = self.inter_attn(h1d)              # (B, S, d)
-        feat1d = h1d.mean(dim=1)                # (B, d)
+        h1d = self.inter_attn(h1d, src_key_padding_mask=kpm)  # (B, S, d)
+        # masked mean over observed cycles
+        mm = mask.unsqueeze(-1)                  # (B,S,1)
+        feat1d = (h1d * mm).sum(dim=1) / mm.sum(dim=1).clamp(min=1)  # (B, d)
 
         # --- 2D path ---
         q2d = Q.unsqueeze(1)                    # (B, 1, S, N)

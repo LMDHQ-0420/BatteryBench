@@ -1,18 +1,21 @@
 """
 soh_traj/cnn.py — 2D CNN for SOH degradation trajectory prediction.
-Input:  batch['curves'] (B, S, 3, L) → treated as 3-channel image (B, 3, S, L)
+Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
+        未观测圈已由 dataset 置零。permute → (B, 3, S, L) 作为3通道图像。
 Output: (pred:(B, n_future), None)
 """
 
 import torch
 import torch.nn as nn
 
+from src.models._masking import get_inputs
+
 
 class CNN(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        n_future = cfg.get('data', {}).get('n_future', 100)
+        n_future = cfg.get('data', {}).get('n_future', 5000)
         dropout  = m.get('dropout', 0.1)
 
         self.conv = nn.Sequential(
@@ -26,8 +29,8 @@ class CNN(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['curves']                   # (B, S, 3, L)
-        x = x.permute(0, 2, 1, 3)            # (B, 3, S, L)
+        x, _ = get_inputs(batch)              # (B, S, 3, L)
+        x = x.permute(0, 2, 1, 3)             # (B, 3, S, L)
         h = self.conv(x).reshape(x.shape[0], -1)
         pred = self.head(h)                   # (B, n_future)
         return pred, None

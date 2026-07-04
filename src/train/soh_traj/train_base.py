@@ -17,19 +17,19 @@ def _to_device(batch, device):
             for k, v in batch.items()}
 
 
-def _masked_mse(pred, target, lens):
-    """MSE only over valid (non-padded) positions."""
-    mask = torch.zeros_like(target, dtype=torch.bool)
-    for i, l in enumerate(lens):
-        mask[i, :l] = True
-    return F.mse_loss(pred[mask], target[mask])
+def _masked_mse(pred, target, tmask):
+    """MSE only over未来段（trajectory_mask=1 的位置）。"""
+    m = tmask > 0
+    if m.sum() == 0:
+        return (pred.sum() * 0.0)
+    return F.mse_loss(pred[m], target[m])
 
 
-def _masked_mae(pred, target, lens):
-    mask = torch.zeros_like(target, dtype=torch.bool)
-    for i, l in enumerate(lens):
-        mask[i, :l] = True
-    return float(torch.mean(torch.abs(pred[mask] - target[mask])).item())
+def _masked_mae(pred, target, tmask):
+    m = tmask > 0
+    if m.sum() == 0:
+        return 0.0
+    return float(torch.mean(torch.abs(pred[m] - target[m])).item())
 
 
 def train_one_epoch(model, loader, optimizer, device, n_future=5000):
@@ -42,8 +42,8 @@ def train_one_epoch(model, loader, optimizer, device, n_future=5000):
         out = model(b)
         pred   = out[0] if isinstance(out, (tuple, list)) else out  # (B, n_future)
         target = b['soh_traj'][:, :n_future]                        # (B, n_future)
-        lens   = b['soh_traj_len']                                   # (B,)
-        loss = _masked_mse(pred, target, lens)
+        tmask  = b['trajectory_mask'][:, :n_future]                 # (B, n_future) 只未来段
+        loss = _masked_mse(pred, target, tmask)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
@@ -54,7 +54,7 @@ def train_one_epoch(model, loader, optimizer, device, n_future=5000):
 
 def validate(model, loader, device, n_future=5000):
     model.eval()
-    preds, trues, lens_all = [], [], []
+    preds, trues, masks_all = [], [], []
 
     with torch.no_grad():
         for batch in loader:
@@ -63,12 +63,12 @@ def validate(model, loader, device, n_future=5000):
             pred = out[0] if isinstance(out, (tuple, list)) else out
             preds.append(pred.cpu())
             trues.append(b['soh_traj'][:, :n_future].cpu())
-            lens_all.append(b['soh_traj_len'].cpu())
+            masks_all.append(b['trajectory_mask'][:, :n_future].cpu())
 
     preds = torch.cat(preds, dim=0)
     trues = torch.cat(trues, dim=0)
-    lens  = torch.cat(lens_all, dim=0)
-    return _masked_mae(preds, trues, lens)
+    tmask = torch.cat(masks_all, dim=0)
+    return _masked_mae(preds, trues, tmask)
 
 
 def train(model, train_loader, val_loader, config, save_path, device='cuda'):

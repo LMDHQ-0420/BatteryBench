@@ -1,18 +1,22 @@
 """
 soh_point/patchtst.py — PatchTST for SOH single-point estimation.
 Reference: Nie et al., ICLR 2023.
-Input:  batch['curves'] (B, 3, L) → (B, L, 3) then patched
+Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
+        未观测圈已由 dataset 置零。每圈拼成 token (3*L)，沿 cycle 轴切 patch。
 Output: (pred:(B,1), None)
 """
 
 import torch
 import torch.nn as nn
 
+from src.models._masking import get_inputs, flatten_cycles
+
 
 class PatchTST(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
+        S         = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
         L         = cfg.get('data', {}).get('charge_discharge_length', 300)
         patch_len = m.get('patchtst_patch_len', 16)
         stride    = m.get('patchtst_stride', 8)
@@ -23,9 +27,10 @@ class PatchTST(nn.Module):
 
         self.patch_len = patch_len
         self.stride    = stride
-        n_patches      = max(1, (L - patch_len) // stride + 1)
+        F_dim          = 3 * L
+        n_patches      = max(1, (S - patch_len) // stride + 1)
 
-        self.patch_proj = nn.Linear(patch_len * 3, d_model)
+        self.patch_proj = nn.Linear(patch_len * F_dim, d_model)
         self.pos_emb    = nn.Parameter(torch.zeros(1, n_patches, d_model))
         nn.init.trunc_normal_(self.pos_emb, std=0.02)
 
@@ -42,12 +47,14 @@ class PatchTST(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['curves']              # (B, 3, L)
-        x = x.permute(0, 2, 1)          # (B, L, 3)
-        patches = x.unfold(1, self.patch_len, self.stride)  # (B, P, 3, patch_len)
-        B, P, C, PL = patches.shape
-        patches = patches.reshape(B, P, C * PL)             # (B, P, 3*patch_len)
+        x, mask = get_inputs(batch)           # (B, S, 3, L), (B, S)
+        x = flatten_cycles(x)                 # (B, S, F)
+        patches = x.unfold(1, self.patch_len, self.stride)  # (B, P, F, patch_len)
+        B2, P, F, PL = patches.shape
+        patches = patches.reshape(B2, P, F * PL)
         h = self.patch_proj(patches) + self.pos_emb[:, :P, :]
-        h = self.encoder(h)
+        mpatch = mask.unfold(1, self.patch_len, self.stride)  # (B, P, patch_len)
+        kpm = mpatch.sum(-1) <= 0
+        h = self.encoder(h, src_key_padding_mask=kpm)
         pred = self.head(h)
         return pred, None
