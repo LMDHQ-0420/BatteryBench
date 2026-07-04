@@ -25,11 +25,12 @@ sys.path.insert(0, ROOT)
 
 from src.config import load_config, get_pkl_dir, DOMAIN_CFG
 from src.data.dataset import BatteryDataset
-from src.splits import make_splits
+from src.data.soh_point.dataset import SOHPointDataset
+from src.splits import make_splits, make_soh_point_splits
 from src.models.registry import get_spec, ALL_MODELS, ALL_TASKS
-import src.evaluate.rul       as eval_rul
-import src.evaluate.soh_point as eval_soh_point
-import src.evaluate.soh_traj  as eval_soh_traj
+import src.evaluate.rul.evaluate       as eval_rul
+import src.evaluate.soh_point.evaluate as eval_soh_point
+import src.evaluate.soh_traj.evaluate  as eval_soh_traj
 
 
 def _get_evaluate_fn(task: str):
@@ -62,6 +63,12 @@ def _eval_three_level(model_name: str, task: str, cfg: dict,
     evaluate_fn   = _get_evaluate_fn(task)
 
     model_save_dir = os.path.join(save_dir, model_name)
+
+    if task == 'soh_point':
+        _eval_soh_point(model_name, 'three_level', spec, cfg, d_cfg, t_cfg,
+                        n_grid, batch_size, evaluate_fn,
+                        None, model_save_dir, device)
+        return
 
     # sklearn 模型：加载 pickle
     if spec.build_fn is None:
@@ -219,6 +226,110 @@ def _eval_three_level(model_name: str, task: str, cfg: dict,
     print(f'  Saved → {result_path}')
 
 
+# ── soh_point 专用评估（battery-level split）────────────────────────────────
+
+def _eval_soh_point(model_name, domain, spec, cfg, d_cfg, t_cfg,
+                    n_grid, batch_size, evaluate_fn,
+                    checkpoint, model_save_dir, device):
+    from src.train.soh_point.train_severson import evaluate as sklearn_eval
+    strategy        = d_cfg.get('split_strategy', 'random')
+    exclude_pattern = d_cfg.get('exclude_pattern', None)
+    train_dirs      = d_cfg.get('train_dirs', []) if strategy == 'three_level' else None
+    if train_dirs:
+        dirs = train_dirs
+    else:
+        dirs = get_pkl_dir(d_cfg)
+
+    full_ds    = SOHPointDataset(dirs, n_grid=n_grid, exclude_pattern=exclude_pattern)
+    all_splits = make_soh_point_splits(full_ds, cfg, seed=42)
+
+    if spec.build_fn is None:
+        pkl_files = sorted(glob.glob(os.path.join(model_save_dir, 'split*.pkl')))
+        if not pkl_files:
+            print(f'  No pkl files found in {model_save_dir}. Run scripts/train.py first.')
+            return
+        all_metrics = []
+        for pkl_path in pkl_files:
+            basename = os.path.basename(pkl_path)
+            try:
+                si = int(basename.replace('split', '').replace('.pkl', '')) - 1
+            except ValueError:
+                si = 0
+            if si >= len(all_splits):
+                continue
+            test_ds = all_splits[si]['test'] or all_splits[si]['val']
+            if len(test_ds) == 0:
+                continue
+            metrics = sklearn_eval(test_ds, pkl_path)
+            print(f'  Split {si+1}:', end='  ')
+            _print_metrics(metrics)
+            all_metrics.append(metrics)
+        if not all_metrics:
+            return
+        keys = list(all_metrics[0].keys())
+        print(f'\n  === {model_name.upper()} @ soh_point / {domain} ({len(all_metrics)} splits) ===')
+        for k in keys:
+            vals = [m[k] for m in all_metrics]
+            print(f'    {k.upper():8s}: {np.mean(vals):.4f} ± {np.std(vals):.4f}')
+        result_path = os.path.join(model_save_dir, 'results.json')
+        os.makedirs(model_save_dir, exist_ok=True)
+        with open(result_path, 'w') as f:
+            json.dump({'domain': domain, 'task': 'soh_point', 'model': model_name,
+                       'splits': all_metrics,
+                       'mean': {k: float(np.mean([m[k] for m in all_metrics])) for k in keys},
+                       'std':  {k: float(np.std( [m[k] for m in all_metrics])) for k in keys},
+                       }, f, indent=2)
+        print(f'  Saved → {result_path}')
+        return
+
+    if checkpoint:
+        ckpt_files = [checkpoint]
+    else:
+        ckpt_files = sorted(glob.glob(os.path.join(model_save_dir, 'split*.pt')))
+        if not ckpt_files:
+            print(f'  No checkpoints found in {model_save_dir}. Run scripts/train.py first.')
+            return
+
+    all_metrics = []
+    for ckpt_path in ckpt_files:
+        basename = os.path.basename(ckpt_path)
+        try:
+            si = int(basename.replace('split', '').replace('.pt', '')) - 1
+        except ValueError:
+            si = 0
+        if si >= len(all_splits):
+            print(f'  split index {si+1} out of range, skipping {basename}')
+            continue
+        test_ds = all_splits[si]['test'] or all_splits[si]['val']
+        if len(test_ds) == 0:
+            print(f'  Empty test set for split {si+1}, skipping.')
+            continue
+        test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=0)
+        model = spec.build_fn(cfg).to(device)
+        model.load_state_dict(torch.load(ckpt_path, map_location=device, weights_only=True))
+        metrics = evaluate_fn(model, test_loader, device)
+        print(f'  Split {si+1}:', end='  ')
+        _print_metrics(metrics)
+        all_metrics.append(metrics)
+
+    if not all_metrics:
+        return
+    keys = list(all_metrics[0].keys())
+    print(f'\n  === {model_name.upper()} @ soh_point / {domain} ({len(all_metrics)} splits) ===')
+    for k in keys:
+        vals = [m[k] for m in all_metrics]
+        print(f'    {k.upper():8s}: {np.mean(vals):.4f} ± {np.std(vals):.4f}')
+    result_path = os.path.join(model_save_dir, 'results.json')
+    os.makedirs(model_save_dir, exist_ok=True)
+    with open(result_path, 'w') as f:
+        json.dump({'domain': domain, 'task': 'soh_point', 'model': model_name,
+                   'splits': all_metrics,
+                   'mean': {k: float(np.mean([m[k] for m in all_metrics])) for k in keys},
+                   'std':  {k: float(np.std( [m[k] for m in all_metrics])) for k in keys},
+                   }, f, indent=2)
+    print(f'  Saved → {result_path}')
+
+
 # ── 普通域评估（random / stratified）────────────────────────────────────────
 
 def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
@@ -237,6 +348,12 @@ def _eval_standard(model_name: str, task: str, domain: str, cfg: dict,
     evaluate_fn   = _get_evaluate_fn(task)
 
     model_save_dir = os.path.join(save_dir, model_name)
+
+    if task == 'soh_point':
+        _eval_soh_point(model_name, domain, spec, cfg, d_cfg, t_cfg,
+                        n_grid, batch_size, evaluate_fn,
+                        checkpoint, model_save_dir, device)
+        return
 
     # sklearn 模型：从 split{si}.pkl 加载推理
     if spec.build_fn is None:

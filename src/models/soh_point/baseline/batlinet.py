@@ -1,9 +1,7 @@
 """
 batlinet.py — BatLiNet adapted for SOH point estimation.
 Reference: Zhang et al., Nature Machine Intelligence 7 (2025) 270-277.
-
-Architecture identical to RUL version; only target key changes:
-  batch['rul'] → batch['soh_point']
+Input: batch['Q_single'] (B, N) — single-cycle Q(V) curve
 Output: (pred:(B,1), None)
 """
 
@@ -13,27 +11,27 @@ import torch.nn.functional as F
 
 
 class _CNNEncoder(nn.Module):
-    def __init__(self, n_cycles: int, n_grid: int, d_model: int, dropout: float):
+    def __init__(self, n_grid: int, d_model: int, dropout: float):
         super().__init__()
         self.conv = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=(3, 7), padding=(1, 3)),
-            nn.BatchNorm2d(32),
+            nn.Conv1d(1, 32, kernel_size=7, padding=3),
+            nn.BatchNorm1d(32),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=(3, 7), padding=(1, 3)),
-            nn.BatchNorm2d(64),
+            nn.Conv1d(32, 64, kernel_size=7, padding=3),
+            nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.AdaptiveAvgPool2d((4, 8)),
+            nn.AdaptiveAvgPool1d(8),
         )
         self.fc = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(64 * 4 * 8, d_model),
+            nn.Linear(64 * 8, d_model),
             nn.LayerNorm(d_model),
             nn.ReLU(),
             nn.Dropout(dropout),
         )
 
     def forward(self, x):
-        h = self.conv(x.unsqueeze(1))
+        h = self.conv(x.unsqueeze(1))   # (B, 1, N) → Conv1d
         return self.fc(h)
 
 
@@ -41,15 +39,13 @@ class BatLiNet(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        n_cycles  = m.get('n_cycles', 100)
         n_grid    = m.get('n_grid', 200)
         d_model   = m.get('batlinet_d_model', 64)
         dropout   = m.get('dropout', 0.1)
         self.lam  = m.get('batlinet_lambda', 1.0)
         self.alpha = m.get('batlinet_alpha', 0.5)
-        self.n_ref = m.get('batlinet_n_ref', 8)
 
-        self.encoder = _CNNEncoder(n_cycles, n_grid, d_model, dropout)
+        self.encoder = _CNNEncoder(n_grid, d_model, dropout)
         self.head = nn.Linear(d_model, 1, bias=True)
 
         self._ref_Q = None
@@ -62,8 +58,8 @@ class BatLiNet(nn.Module):
         return self.head(self.encoder(dQ))
 
     def compute_loss(self, batch, device):
-        Q = batch['Q'].to(device)
-        y = batch['soh_point'].to(device)   # (B, 1)
+        Q = batch['Q_single'].to(device)    # (B, N)
+        y = batch['soh_point'].to(device)
         B = Q.shape[0]
 
         pred_intra = self._intra_pred(Q)
@@ -106,7 +102,7 @@ class BatLiNet(nn.Module):
         self._ref_y = None
 
     def forward(self, batch):
-        Q = batch['Q']
+        Q = batch['Q_single']            # (B, N)
         device = Q.device
         B = Q.shape[0]
 

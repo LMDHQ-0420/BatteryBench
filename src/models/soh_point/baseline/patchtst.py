@@ -1,7 +1,7 @@
 """
 soh_point/patchtst.py — PatchTST for SOH single-point estimation.
 Reference: Nie et al., ICLR 2023.
-Input:  batch['curves'] (B, S, 3, L) → per-cycle token (B, S, 3*L)
+Input:  batch['curves'] (B, 3, L) → (B, L, 3) then patched
 Output: (pred:(B,1), None)
 """
 
@@ -13,7 +13,6 @@ class PatchTST(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        S         = m.get('n_cycles', 100)
         L         = cfg.get('data', {}).get('charge_discharge_length', 300)
         patch_len = m.get('patchtst_patch_len', 16)
         stride    = m.get('patchtst_stride', 8)
@@ -24,10 +23,9 @@ class PatchTST(nn.Module):
 
         self.patch_len = patch_len
         self.stride    = stride
-        F_dim          = 3 * L
-        n_patches      = max(1, (S - patch_len) // stride + 1)
+        n_patches      = max(1, (L - patch_len) // stride + 1)
 
-        self.patch_proj = nn.Linear(patch_len * F_dim, d_model)
+        self.patch_proj = nn.Linear(patch_len * 3, d_model)
         self.pos_emb    = nn.Parameter(torch.zeros(1, n_patches, d_model))
         nn.init.trunc_normal_(self.pos_emb, std=0.02)
 
@@ -44,12 +42,11 @@ class PatchTST(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['curves']                   # (B, S, 3, L)
-        B, S, C, L = x.shape
-        x = x.reshape(B, S, C * L)           # (B, S, F)
-        patches = x.unfold(1, self.patch_len, self.stride)  # (B, P, F, patch_len)
-        B2, P, F, PL = patches.shape
-        patches = patches.reshape(B2, P, F * PL)
+        x = batch['curves']              # (B, 3, L)
+        x = x.permute(0, 2, 1)          # (B, L, 3)
+        patches = x.unfold(1, self.patch_len, self.stride)  # (B, P, 3, patch_len)
+        B, P, C, PL = patches.shape
+        patches = patches.reshape(B, P, C * PL)             # (B, P, 3*patch_len)
         h = self.patch_proj(patches) + self.pos_emb[:, :P, :]
         h = self.encoder(h)
         pred = self.head(h)

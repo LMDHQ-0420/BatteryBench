@@ -1,7 +1,7 @@
 """
 soh_point/itransformer.py — iTransformer for SOH single-point estimation.
 Reference: Liu et al., ICLR 2024.
-Input:  batch['curves'] (B, S, 3, L) → each channel as token (B, 3, S*L)
+Input:  batch['curves'] (B, 3, L) → each channel as a token (B, 3, L)
 Output: (pred:(B,1), None)
 """
 
@@ -13,14 +13,13 @@ class iTransformer(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        S        = m.get('n_cycles', 100)
         L        = cfg.get('data', {}).get('charge_discharge_length', 300)
         d_model  = m.get('itransformer_d_model', 64)
         n_heads  = m.get('itransformer_n_heads', 4)
         n_layers = m.get('itransformer_n_layers', 2)
         dropout  = m.get('dropout', 0.1)
 
-        self.var_proj = nn.Linear(S * L, d_model)
+        self.var_proj = nn.Linear(L, d_model)
         enc_layer = nn.TransformerEncoderLayer(
             d_model=d_model, nhead=n_heads,
             dim_feedforward=d_model * 4,
@@ -33,10 +32,8 @@ class iTransformer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = batch['curves']                   # (B, S, 3, L)
-        B, S, C, L = x.shape
-        x = x.permute(0, 2, 1, 3).reshape(B, C, S * L)  # (B, 3, S*L)
-        h = self.var_proj(x)                  # (B, 3, d)
+        x = batch['curves']              # (B, 3, L)
+        h = self.var_proj(x)             # (B, 3, d)
         h = self.encoder(h)
         pred = self.head(h.mean(dim=1))
         return pred, None

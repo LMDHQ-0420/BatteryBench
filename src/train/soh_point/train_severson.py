@@ -4,10 +4,10 @@ import numpy as np
 from sklearn.linear_model import ElasticNetCV
 from sklearn.preprocessing import StandardScaler
 
-from src.data.dataset import BatteryDataset
+from src.data.soh_point.dataset import SOHPointDataset
 
 
-def _extract_features(dataset: BatteryDataset) -> np.ndarray:
+def _extract_features(dataset: SOHPointDataset) -> np.ndarray:
     feats = []
     for i in range(len(dataset)):
         dq = dataset[i]['delta_q'].numpy()
@@ -15,7 +15,7 @@ def _extract_features(dataset: BatteryDataset) -> np.ndarray:
     return np.array(feats, dtype=float)
 
 
-def _get_targets(dataset: BatteryDataset) -> np.ndarray:
+def _get_targets(dataset: SOHPointDataset) -> np.ndarray:
     return np.array([float(dataset[i]['soh_point'].item()) for i in range(len(dataset))])
 
 
@@ -29,7 +29,7 @@ def _metrics(preds, y_test) -> dict:
     return {'mae': mae, 'mse': mse, 'rmse': rmse, 'mape': mape}
 
 
-def train(train_ds: BatteryDataset, test_ds: BatteryDataset,
+def train(train_ds: SOHPointDataset, test_ds: SOHPointDataset,
           save_path: str = None) -> dict:
     X_train, y_train = _extract_features(train_ds), _get_targets(train_ds)
     X_test,  y_test  = _extract_features(test_ds),  _get_targets(test_ds)
@@ -49,7 +49,7 @@ def train(train_ds: BatteryDataset, test_ds: BatteryDataset,
     return _metrics(model.predict(X_test), y_test)
 
 
-def evaluate(test_ds: BatteryDataset, save_path: str) -> dict:
+def evaluate(test_ds: SOHPointDataset, save_path: str) -> dict:
     with open(save_path, 'rb') as f:
         obj = pickle.load(f)
     scaler, model = obj['scaler'], obj['model']

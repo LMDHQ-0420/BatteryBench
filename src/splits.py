@@ -24,6 +24,8 @@ from collections import defaultdict
 from typing import List, Dict
 
 from src.data.dataset import BatteryDataset
+from src.data.rul.dataset import RULDataset
+from src.data.soh_traj.dataset import SOHTrajDataset
 
 
 def _random_splits(
@@ -140,18 +142,68 @@ def _three_level_split(cfg: dict, seed: int, pool_ds=None) -> List[Dict]:
     }]
 
 
-def make_splits(ds: BatteryDataset, cfg: dict, seed: int = 42) -> List[Dict]:
+def make_soh_point_splits(ds, cfg: dict, seed: int = 42) -> List[Dict]:
+    """
+    SOHPointDataset 专用划分：在电池级别 split，返回 SOHPointDataset 子集列表。
+
+    每个 split 返回:
+        {'train': SOHPointDataset, 'val': SOHPointDataset, 'test': SOHPointDataset}
+
+    three_level 模式下 test 为 None（测试集独立加载）。
+    """
+    d_cfg      = cfg.get('data', {})
+    strategy   = d_cfg.get('split_strategy', 'random')
+    val_ratio  = d_cfg.get('val_ratio', 0.1)
+    test_ratio = d_cfg.get('test_ratio', 0.2)
+    n_splits   = d_cfg.get('n_splits', 3)
+    n_batt     = ds.n_batteries
+
+    if strategy == 'random':
+        idx_splits = _random_splits(n_batt, val_ratio, test_ratio, n_splits, seed)
+    elif strategy == 'stratified':
+        stratify_by = d_cfg.get('stratify_by', 'cathode_material')
+        idx_splits = _stratified_splits(ds.get_battery_meta(), stratify_by,
+                                        val_ratio, test_ratio, n_splits, seed)
+    elif strategy == 'three_level':
+        # val/train from pool; test sets loaded separately in scripts
+        meta = ds.get_battery_meta()
+        by_chem = defaultdict(list)
+        for i, m in enumerate(meta):
+            by_chem[m.get('cathode_material', 'unknown')].append(i)
+        rng = random.Random(seed)
+        train_idx, val_idx = [], []
+        for chem in sorted(by_chem):
+            items = list(by_chem[chem])
+            rng.shuffle(items)
+            n_val = max(1, round(len(items) * d_cfg.get('val_ratio', 0.08))) if len(items) > 1 else 0
+            val_idx.extend(items[:n_val])
+            train_idx.extend(items[n_val:])
+        idx_splits = [{'train': train_idx, 'val': val_idx, 'test': []}]
+    else:
+        raise ValueError(f"Unknown split_strategy '{strategy}'")
+
+    result = []
+    for sp in idx_splits:
+        result.append({
+            'train': ds.subset_by_battery(sp['train']),
+            'val':   ds.subset_by_battery(sp['val']),
+            'test':  ds.subset_by_battery(sp['test']) if sp['test'] else None,
+        })
+    return result
+
+
+def make_splits(ds, cfg: dict, seed: int = 42) -> List[Dict]:
     """
     统一划分入口，根据 cfg['data']['split_strategy'] 选择策略。
 
     config 参数:
-        split_strategy : random | stratified | hyperbat
+        split_strategy : random | stratified | three_level
         val_ratio      : 验证集比例
         test_ratio     : 测试集比例（random / stratified）
         n_splits       : 重复划分次数（random / stratified）
         stratify_by    : cathode_material | dataset_name（stratified 专用）
-        train_dirs     : 训练池目录列表（hyperbat 专用）
-        test_sets      : 固定测试集列表（hyperbat 专用）
+        train_dirs     : 训练池目录列表（three_level 专用）
+        test_sets      : 固定测试集列表（three_level 专用）
     """
     d_cfg      = cfg.get('data', {})
     strategy   = d_cfg.get('split_strategy', 'random')

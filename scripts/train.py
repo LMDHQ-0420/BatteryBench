@@ -32,7 +32,8 @@ sys.path.insert(0, ROOT)
 
 from src.config import load_config, get_pkl_dir, DOMAIN_CFG
 from src.data.dataset import BatteryDataset
-from src.splits import make_splits
+from src.data.soh_point.dataset import SOHPointDataset
+from src.splits import make_splits, make_soh_point_splits
 from src.models.registry import get_spec, ALL_MODELS, ALL_TASKS
 
 
@@ -53,13 +54,19 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
     model_save_dir = os.path.join(save_dir, model_name)
     os.makedirs(model_save_dir, exist_ok=True)
 
+    # ── soh_point: battery-level split via SOHPointDataset ───────────────────
+    if task == 'soh_point':
+        _train_soh_point(model_name, task, domain, spec, cfg, d_cfg, t_cfg,
+                         strategy, n_grid, batch_size, use_log_rul,
+                         split_idx, model_save_dir, save_dir, device)
+        return
+
     # ── three_level: 固定 train/val，无随机 test ──────────────────────────────
     if strategy == 'three_level':
         import copy
         train_dirs      = d_cfg.get('train_dirs', [])
         exclude_pattern = d_cfg.get('exclude_pattern', None)
 
-        # 加载一次 BatteryDataset 用于 make_splits，同时作为 BatteryDataset 模型的数据源
         pool_ds = BatteryDataset(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
                                  soh_threshold=soh_threshold,
                                  exclude_pattern=exclude_pattern)
@@ -69,7 +76,6 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
 
         use_bd = (spec.dataset_cls is BatteryDataset)
         if not use_bd:
-            # 非 BatteryDataset（如 batterymformer）：单独加载一次，再切片
             full_ds = spec.dataset_cls(train_dirs, n_cycles=n_cycles, n_grid=n_grid,
                                        soh_threshold=soh_threshold,
                                        exclude_pattern=exclude_pattern)
@@ -139,7 +145,6 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
     use_slice = (spec.dataset_cls is BatteryDataset)
 
     if not use_slice:
-        # batterymformer 等非 BatteryDataset：预先加载一次，用 _all_samples 切片
         full_ds = spec.dataset_cls(pkl_dir, n_cycles=n_cycles, n_grid=n_grid,
                                    soh_threshold=soh_threshold)
     else:
@@ -150,9 +155,9 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
         sliced = [full_ds._all_samples[i] for i in indices
                   if i < len(full_ds._all_samples)]
         if hasattr(full_ds, '_samples'):
-            ds._samples = sliced   # BatteryDataset
+            ds._samples = sliced
         else:
-            ds.samples = sliced    # BatteryMFormerDataset
+            ds.samples = sliced
         if hasattr(ds, 'use_log_rul'):
             ds.use_log_rul = use_log
         return ds
@@ -198,6 +203,82 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
         val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False, num_workers=0)
         model     = spec.build_fn(cfg).to(device)
         save_path = os.path.join(model_save_dir, f'split{si}.pt')
+        spec.train_fn(model, train_loader, val_loader, cfg, save_path, device)
+        print(f'  Checkpoint → {save_path}')
+
+
+def _train_soh_point(model_name, task, domain, spec, cfg, d_cfg, t_cfg,
+                     strategy, n_grid, batch_size, use_log_rul,
+                     split_idx, model_save_dir, save_dir, device):
+    import copy
+    exclude_pattern = d_cfg.get('exclude_pattern', None)
+    train_dirs      = d_cfg.get('train_dirs', []) if strategy == 'three_level' else None
+
+    if train_dirs:
+        dirs = train_dirs
+    else:
+        dirs = get_pkl_dir(d_cfg)
+    full_ds = SOHPointDataset(dirs, n_grid=n_grid,
+                              exclude_pattern=exclude_pattern)
+    all_splits = make_soh_point_splits(full_ds, cfg, seed=42)
+
+    if strategy == 'three_level':
+        splits = all_splits
+        split_offset = 0
+    else:
+        if split_idx is not None:
+            if split_idx < 1 or split_idx > len(all_splits):
+                raise ValueError(f"--split_idx 范围 1..{len(all_splits)}")
+            splits = [all_splits[split_idx - 1]]
+            split_offset = split_idx - 1
+        else:
+            splits = all_splits
+            split_offset = 0
+
+    suffix = 'best' if strategy == 'three_level' else None
+
+    if spec.build_fn is None:
+        all_metrics = []
+        for i, split in enumerate(splits):
+            si = i + split_offset + 1
+            label = 'best' if strategy == 'three_level' else f'split{si}'
+            print(f'\n--- Split {si}/{len(all_splits)} ---')
+            train_ds = split['train']
+            test_ds  = split['test'] if split['test'] is not None else split['val']
+            if len(train_ds) == 0 or len(test_ds) == 0:
+                print('  Skipping empty split.')
+                continue
+            pkl_path = os.path.join(model_save_dir, f'{label}.pkl')
+            metrics = spec.train_fn(train_ds, test_ds, save_path=pkl_path)
+            _print_metrics(metrics)
+            all_metrics.append(metrics)
+        if all_metrics:
+            keys = list(all_metrics[0].keys())
+            result_path = os.path.join(model_save_dir, 'results.json')
+            with open(result_path, 'w') as f:
+                json.dump({
+                    'domain': domain, 'task': task, 'model': model_name,
+                    'splits': all_metrics,
+                    'mean': {k: float(np.mean([m[k] for m in all_metrics])) for k in keys},
+                    'std':  {k: float(np.std( [m[k] for m in all_metrics])) for k in keys},
+                }, f, indent=2)
+            print(f'  Saved → {result_path}')
+        return
+
+    for i, split in enumerate(splits):
+        si = i + split_offset + 1
+        label = 'best' if strategy == 'three_level' else f'split{si}'
+        print(f'\n--- Split {si}/{len(all_splits)} ---')
+        train_ds = split['train']
+        val_ds   = split['val']
+        print(f'  train={len(train_ds)}  val={len(val_ds)}')
+        if len(train_ds) == 0 or len(val_ds) == 0:
+            print('  Skipping empty split.')
+            continue
+        train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,  num_workers=0)
+        val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False, num_workers=0)
+        model     = spec.build_fn(cfg).to(device)
+        save_path = os.path.join(model_save_dir, f'{label}.pt')
         spec.train_fn(model, train_loader, val_loader, cfg, save_path, device)
         print(f'  Checkpoint → {save_path}')
 
