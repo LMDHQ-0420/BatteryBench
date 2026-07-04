@@ -1,5 +1,5 @@
-# Data
-data/
+# Data (repo-root only; do not match src/data/)
+/data/
 
 # Results — track json, ignore model weights
 results/**/*.pt
