@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # run_all.sh — 并发训练所有 (domain, task, model) 组合
 # 用法: bash run_all.sh
-# GPU 分配: 4 × RTX 3090，每张最多 2 个并发进程（共 8 槽）
+# GPU 分配: 4 × RTX 3090，每张最多 3 个并发进程（共 12 槽）
 
 set -euo pipefail
 
@@ -18,8 +18,12 @@ LOG_DIR="log/${TIMESTAMP}"
 mkdir -p "${LOG_DIR}"
 
 GPUS=(0 1 2 3)
-SLOTS_PER_GPU=2
+SLOTS_PER_GPU=3
 TOTAL_SLOTS=$(( ${#GPUS[@]} * SLOTS_PER_GPU ))
+
+# 机器上还跑着其他项目 (WeatherMoE)，CPU 是稀缺资源而非 GPU 显存。
+# 每个 job 限制线程数，避免多进程互相抢核（之前观测到 3 个未限流进程即可把 32 核跑满）。
+JOB_THREADS=3
 
 # ── 任务列表 ──────────────────────────────────────────────────────────────────
 
@@ -88,6 +92,7 @@ for job in "${JOBS[@]}"; do
     echo "[$(date '+%H:%M:%S')] START  gpu=${gpu} slot=${slot}  ${domain}/${task}/${model}"
 
     nohup bash -c "
+        export OMP_NUM_THREADS=${JOB_THREADS} MKL_NUM_THREADS=${JOB_THREADS}
         ${PYTHON} scripts/train.py \
             --domain '${domain}' --task '${task}' --model '${model}' --gpu '${gpu}' --seed 42 && \
         ${PYTHON} scripts/evaluate.py \

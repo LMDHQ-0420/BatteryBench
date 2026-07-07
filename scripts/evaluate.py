@@ -58,7 +58,7 @@ def _build_full_dataset(spec, cfg, dirs, exclude_pattern):
     )
 
 
-def _eval_dl(spec, cfg, task, model, test_ds, batch_size, device):
+def _eval_dl(spec, cfg, task, model, test_ds, batch_size, device, scaler_path=None):
     """跑一个 test 子集，返回 metrics dict。"""
     evaluate_fn = _get_evaluate_fn(task)
     eol_thr = cfg['data'].get('eol_threshold', cfg['data'].get('soh_threshold', 0.80))
@@ -67,6 +67,8 @@ def _eval_dl(spec, cfg, task, model, test_ds, batch_size, device):
         return evaluate_fn(model, loader, device,
                            n_future=cfg['data'].get('n_future', 5000),
                            eol_threshold=eol_thr)
+    if task == 'rul' and scaler_path and os.path.exists(scaler_path):
+        return evaluate_fn(model, loader, device, scaler_path=scaler_path)
     return evaluate_fn(model, loader, device)
 
 
@@ -161,6 +163,7 @@ def _eval_three_level(model_name, task, domain, spec, cfg, train_dirs,
     is_sklearn = spec.build_fn is None
 
     model = None
+    scaler_path = ckpt.replace('.pt', '_scaler.pkl')
     if not is_sklearn:
         if not os.path.exists(ckpt):
             print(f'  No checkpoint at {ckpt}.'); return
@@ -202,7 +205,8 @@ def _eval_three_level(model_name, task, domain, spec, cfg, train_dirs,
         if is_sklearn:
             metrics = sk_eval(test_ds, pkl)
         else:
-            metrics = _eval_dl(spec, cfg, task, model, test_ds, batch_size, device)
+            metrics = _eval_dl(spec, cfg, task, model, test_ds, batch_size, device,
+                               scaler_path=scaler_path)
         print(f'  [{level}] {ds_name:22s} n={n:4d} | ' +
               '  '.join(f'{k.upper()}={v:.4f}' for k, v in metrics.items()))
         by_level.setdefault(level, []).append((metrics, n))
