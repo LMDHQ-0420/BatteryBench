@@ -1,6 +1,10 @@
 """
 batlinet.py — BatLiNet adapted for SOH point estimation.
 Reference: Zhang et al., Nature Machine Intelligence 7 (2025) 270-277.
+
+Architecture (Eq. 8 of the paper): intra-cell 编码器 f_θ 和 inter-cell 编码器 g_φ
+参数独立（不共享权重），仅共享最后的线性头 w。
+
 Input: batch['Q'] (B, S, N) — 未观测圈已由 dataset 置零
        batch['curve_attn_mask'] (B, S)
 Output: (pred:(B,1), None)  — 预测最后观测圈的 SOH
@@ -13,7 +17,7 @@ import torch.nn.functional as F
 
 class _CNNEncoder(nn.Module):
     """(B, S, N) Q-feature map → (B, d) embedding via Conv2d."""
-    def __init__(self, n_cycles: int, n_grid: int, d_model: int, dropout: float):
+    def __init__(self, d_model: int, dropout: float):
         super().__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=(3, 7), padding=(1, 3)),
@@ -36,24 +40,25 @@ class BatLiNet(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        n_cycles  = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
-        n_grid    = m.get('n_grid', 200)
-        d_model   = m.get('batlinet_d_model', 64)
-        dropout   = m.get('dropout', 0.1)
-        self.lam  = m.get('batlinet_lambda', 1.0)
+        d_model    = m.get('batlinet_d_model', 64)
+        dropout    = m.get('dropout', 0.1)
+        self.lam   = m.get('batlinet_lambda', 1.0)
         self.alpha = m.get('batlinet_alpha', 0.5)
+        self.n_ref = m.get('batlinet_n_ref', 64)   # 论文 Fig. 5b：64 个参考电池最稳
 
-        self.encoder = _CNNEncoder(n_cycles, n_grid, d_model, dropout)
+        # 独立参数的 intra/inter 编码器（论文 Eq. 8：f_θ ≠ g_φ），仅共享最后的线性头 w
+        self.encoder_intra = _CNNEncoder(d_model, dropout)
+        self.encoder_inter = _CNNEncoder(d_model, dropout)
         self.head = nn.Linear(d_model, 1, bias=True)
 
         self._ref_Q = None
         self._ref_y = None
 
     def _intra_pred(self, Q):
-        return self.head(self.encoder(Q))
+        return self.head(self.encoder_intra(Q))
 
     def _inter_pred(self, dQ):
-        return self.head(self.encoder(dQ))
+        return self.head(self.encoder_inter(dQ))
 
     def compute_loss(self, batch, device):
         Q = batch['Q'].to(device)               # (B, S, N)
@@ -109,17 +114,16 @@ class BatLiNet(nn.Module):
         Q_ref = Q_ref.to(device)
         y_ref = y_ref.to(device)
         R = Q_ref.shape[0]
-        max_ref = 32
-        if R > max_ref:
-            idx = torch.randperm(R, device=device)[:max_ref]
-            Q_ref = Q_ref[idx]; y_ref = y_ref[idx]; R = max_ref
+        if R > self.n_ref:
+            idx = torch.randperm(R, device=device)[:self.n_ref]
+            Q_ref = Q_ref[idx]; y_ref = y_ref[idx]; R = self.n_ref
 
         pred_inter_list = []
         for b_idx in range(B):
             Q_b = Q[b_idx:b_idx+1].expand(R, *Q.shape[1:])
             dQ  = Q_b - Q_ref
             pred_diff = self._inter_pred(dQ).view(R, 1)
-            pred_inter_b = (pred_diff + y_ref).median(dim=0).values.unsqueeze(0)
+            pred_inter_b = (pred_diff + y_ref).mean(dim=0).unsqueeze(0)  # 论文 Eq.10: mean
             pred_inter_list.append(pred_inter_b)
         pred_inter = torch.cat(pred_inter_list, dim=0)
         pred = self.alpha * pred_intra + (1 - self.alpha) * pred_inter
