@@ -1,5 +1,5 @@
 data:
-  # 训练池：batch 1-7,10 (HUST) + b1-b3 (MATR) + 其他域，按 cathode_material 分层 8% 作 val
+  # 训练池：batch 1-7,10 (HUST) + b1-b3 (MATR) + CALB + XJTU + 其他域，按 cathode_material 分层 8% 作 val
   split_strategy: three_level
   val_ratio: 0.08
 
@@ -17,6 +17,8 @@ data:
     - data/preprocessed/Tongji        # NMC
     - data/preprocessed/ISU-ILCC      # NCA
     - data/preprocessed/MICH          # NMC/NCA
+    - data/preprocessed/CALB          # NMC（全寿命 SOH 由汇总表注入，见 augment_calb_soh.py）
+    - data/preprocessed/XJTU          # NMC
 
   # 固定测试集，完全隔离，不参与训练和验证
   # level: L1=同化学跨数据集, L2=锂离子跨正极, L3=跨离子体系
