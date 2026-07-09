@@ -26,7 +26,6 @@ from src.models.rul.baseline.micn         import MICN         as RUL_MICN
 from src.models.rul.baseline.timemixer    import TimeMixer    as RUL_TimeMixer
 from src.models.rul.baseline.ic2ml        import IC2ML        as RUL_IC2ML
 from src.models.rul.baseline.batlinet     import BatLiNet     as RUL_BatLiNet
-from src.models.rul.baseline.batterymformer import BatteryMFormer as RUL_BatteryMFormer
 
 # ── SOH point models ──────────────────────────────────────────────────────────
 from src.models.soh_point.baseline.mlp          import MLP          as SP_MLP
@@ -44,7 +43,6 @@ from src.models.soh_point.baseline.micn         import MICN         as SP_MICN
 from src.models.soh_point.baseline.timemixer    import TimeMixer    as SP_TimeMixer
 from src.models.soh_point.baseline.ic2ml        import IC2ML        as SP_IC2ML
 from src.models.soh_point.baseline.batlinet     import BatLiNet     as SP_BatLiNet
-from src.models.soh_point.baseline.batterymformer import BatteryMFormer as SP_BatteryMFormer
 
 # ── SOH traj models ───────────────────────────────────────────────────────────
 from src.models.soh_traj.baseline.mlp          import MLP          as ST_MLP
@@ -62,7 +60,6 @@ from src.models.soh_traj.baseline.micn         import MICN         as ST_MICN
 from src.models.soh_traj.baseline.timemixer    import TimeMixer    as ST_TimeMixer
 from src.models.soh_traj.baseline.ic2ml        import IC2ML        as ST_IC2ML
 from src.models.soh_traj.baseline.batlinet     import BatLiNet     as ST_BatLiNet
-from src.models.soh_traj.baseline.batterymformer import BatteryMFormer as ST_BatteryMFormer
 
 # ── Datasets（多样本 + attention mask，对齐 BatteryLife/BatteryMFormer）──────────
 from src.data.cycle_dataset import (
@@ -144,10 +141,6 @@ _REGISTRY: dict[str, dict[str, ModelSpec]] = {
             build_fn=lambda cfg: RUL_BatLiNet(cfg), dataset_cls=_RULDataset,
             train_fn=_rul_batlinet, batch_size_cap=8,
         ),
-        'batterymformer': ModelSpec(
-            build_fn=lambda cfg: RUL_BatteryMFormer(cfg), dataset_cls=_RULDataset,
-            train_fn=_rul_base,
-        ),
     },
     'soh_point': {
         'severson': ModelSpec(
@@ -199,10 +192,6 @@ _REGISTRY: dict[str, dict[str, ModelSpec]] = {
             build_fn=lambda cfg: SP_BatLiNet(cfg), dataset_cls=_SOHPointDataset,
             train_fn=_sp_batlinet, batch_size_cap=8,
         ),
-        'batterymformer': ModelSpec(
-            build_fn=lambda cfg: SP_BatteryMFormer(cfg), dataset_cls=_SOHPointDataset,
-            train_fn=_sp_base,
-        ),
     },
     'soh_traj': {
         'severson': ModelSpec(
@@ -253,10 +242,6 @@ _REGISTRY: dict[str, dict[str, ModelSpec]] = {
         'batlinet': ModelSpec(
             build_fn=lambda cfg: ST_BatLiNet(cfg), dataset_cls=_SOHTrajDataset,
             train_fn=_st_batlinet, batch_size_cap=8,
-        ),
-        'batterymformer': ModelSpec(
-            build_fn=lambda cfg: ST_BatteryMFormer(cfg), dataset_cls=_SOHTrajDataset,
-            train_fn=_st_base,
         ),
     },
 }

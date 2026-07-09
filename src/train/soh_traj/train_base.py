@@ -1,7 +1,7 @@
 """
 train/soh_traj/train_base.py — SOH 退化轨迹预测标准训练流程
 适用: mlp, gru, bigru, lstm, bilstm, cnn, dlinear, patchtst,
-      autoformer, itransformer, transformer, micn, batterymformer
+      autoformer, itransformer, transformer, micn
 目标: batch['soh_traj'] shape (B, n_future)，用 soh_traj_len mask 的 MSE 损失。
 """
 

@@ -1,7 +1,7 @@
 """
 train/soh_point/train_base.py — SOH 单点估计标准训练流程
 适用: mlp, gru, bigru, lstm, bilstm, cnn, dlinear, patchtst,
-      autoformer, itransformer, transformer, micn, ic2ml, batterymformer
+      autoformer, itransformer, transformer, micn, ic2ml
 """
 
 import os

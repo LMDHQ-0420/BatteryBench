@@ -1,7 +1,7 @@
 """
 train/rul/train_base.py — RUL 预测标准训练流程
 适用: mlp, gru, bigru, lstm, bilstm, cnn, dlinear, patchtst,
-      autoformer, itransformer, transformer, micn, ic2ml, batterymformer
+      autoformer, itransformer, transformer, micn, ic2ml
 
 标签: EOL（= RUL + n_cycles），StandardScaler 归一化后训练，inverse_transform 后评估。
 Scaler 保存至 save_path.replace('.pt', '_scaler.pkl')，evaluate.py 加载使用。

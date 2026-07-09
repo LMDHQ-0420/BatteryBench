@@ -13,12 +13,11 @@ from src.models.soh_point.baseline.micn         import MICN
 from src.models.soh_point.baseline.timemixer    import TimeMixer
 from src.models.soh_point.baseline.ic2ml        import IC2ML
 from src.models.soh_point.baseline.batlinet     import BatLiNet
-from src.models.soh_point.baseline.batterymformer import BatteryMFormer
 from src.models.soh_point.baseline.severson     import Severson
 
 __all__ = [
     'MLP', 'GRU', 'BiGRU', 'LSTM', 'BiLSTM', 'CNN',
     'DLinear', 'PatchTST', 'Transformer', 'Autoformer',
     'iTransformer', 'MICN', 'TimeMixer',
-    'IC2ML', 'BatLiNet', 'BatteryMFormer', 'Severson',
+    'IC2ML', 'BatLiNet', 'Severson',
 ]

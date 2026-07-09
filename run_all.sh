@@ -30,9 +30,9 @@ JOB_THREADS=3
 DOMAINS=(li_ion calb na_ion zn_ion three_level)
 
 declare -A TASK_MODELS
-TASK_MODELS[rul]="autoformer batlinet batterymformer bigru bilstm cnn dlinear gru ic2ml itransformer lstm micn mlp patchtst severson timemixer transformer"
-TASK_MODELS[soh_point]="autoformer batlinet batterymformer bigru bilstm cnn dlinear gru ic2ml itransformer lstm micn mlp patchtst severson timemixer transformer"
-TASK_MODELS[soh_traj]="autoformer batlinet batterymformer bigru bilstm cnn dlinear gru ic2ml itransformer lstm micn mlp patchtst severson timemixer transformer"
+TASK_MODELS[rul]="autoformer batlinet bigru bilstm cnn dlinear gru ic2ml itransformer lstm micn mlp patchtst severson timemixer transformer"
+TASK_MODELS[soh_point]="autoformer batlinet bigru bilstm cnn dlinear gru ic2ml itransformer lstm micn mlp patchtst severson timemixer transformer"
+TASK_MODELS[soh_traj]="autoformer batlinet bigru bilstm cnn dlinear gru ic2ml itransformer lstm micn mlp patchtst severson timemixer transformer"
 
 # 构造所有 (domain, task, model) 三元组
 JOBS=()
