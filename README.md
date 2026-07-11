@@ -87,11 +87,18 @@ pip install -r requirements.txt
 # train a single model
 python scripts/train.py --domain li_ion --model gru --task rul --gpu 0
 
-# train all models on all domains (parallel, 4 GPUs × 3 slots)
-bash run_all.sh
-
 # evaluate
 python scripts/evaluate.py --domain li_ion --model gru --task rul --gpu 0
+```
+
+Parallel driver scripts (GPU-slot scheduler, same pattern in all four):
+
+```bash
+bash run_all.sh                    # everything: all domains × tasks × models
+bash run_domain.sh li_ion          # one domain, all tasks × models
+bash run_domain.sh li_ion 0 1      # ...restricted to GPUs 0 and 1
+bash run_task.sh soh_point         # one task, all domains × models
+bash run_model.sh dlinear          # one model, all domains × tasks
 ```
 
 Results are saved to `results/<domain>/<task>/<model>/results.json`.  
@@ -139,7 +146,7 @@ class MyModel(nn.Module):
 ```python
 'mymodel': ModelSpec(
     build_fn    = lambda cfg: MyModel(cfg),
-    dataset_cls = BatteryDataset,
+    dataset_cls = _RULDataset,  # or _SOHPointDataset / _SOHTrajDataset, matching the task
     train_fn    = _task_base,   # e.g. _rul_base, _sp_base, _st_base
 ),
 ```
@@ -166,8 +173,12 @@ BatteryBench/
 │   ├── train.py           --domain --model --task --gpu
 │   └── evaluate.py        --domain --model --task --gpu
 ├── src/
-│   ├── data/dataset.py    BatteryDataset (Q, delta_q, rul, soh_point, soh_traj, lognf)
-│   ├── evaluate/          rul.py  soh_point.py  soh_traj.py
+│   ├── data/cycle_dataset.py   RULDataset / SOHPointDataset / SOHTrajDataset (multi-sample + attn mask)
+│   ├── splits.py               random / stratified / three_level split strategies
+│   ├── evaluate/
+│   │   ├── rul/evaluate.py
+│   │   ├── soh_point/evaluate.py
+│   │   └── soh_traj/evaluate.py
 │   ├── models/
 │   │   ├── registry.py    get_spec(name, task) → ModelSpec
 │   │   ├── rul/
@@ -185,8 +196,10 @@ BatteryBench/
 │       ├── rul/           train_base  train_batlinet  train_severson
 │       ├── soh_point/     train_base  train_batlinet  train_severson
 │       └── soh_traj/      train_base  train_batlinet  train_severson
-├── run_all.sh             parallel training across all models / domains / tasks
-└── STRUCTURE.md           detailed architecture and extension guide
+├── run_all.sh             parallel training: all domains × tasks × models
+├── run_domain.sh          parallel training: one domain, all tasks × models
+├── run_task.sh            parallel training: one task, all domains × models
+└── run_model.sh           parallel training: one model, all domains × tasks
 ```
 
 ## Results

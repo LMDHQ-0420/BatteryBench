@@ -38,7 +38,7 @@ SOH_TRAJ_LEN = 5000  # soh_traj 固定输出长度，超出实际寿命部分为
 
 def _cache_key(pkl_path: str, early_cycle: int, L: int, n_grid: int) -> str:
     stem = Path(pkl_path).stem
-    return f'{stem}_cyc_e{early_cycle}_L{L}_g{n_grid}_v4'
+    return f'{stem}_cyc_e{early_cycle}_L{L}_g{n_grid}'
 
 
 def _load_battery(pkl_path: str, early_cycle: int, charge_discharge_length: int,

@@ -38,14 +38,6 @@ class BasePreprocessor:
                 f'Found empty pkl file for {processed_file}.')
         return False
 
-    # def dump(self, batteries: List[BatteryData]):
-    #     if not self.silent:
-    #         batteries = tqdm(
-    #             batteries,
-    #             desc=f'Dump batteries to {str(self.output_dir)}')
-    #     for battery in batteries:
-    #         battery.dump(self.output_dir / f'{battery.cell_id}.pkl')
-
     def dump_single_file(self, battery: BatteryData):
         battery.dump(self.output_dir / f'{battery.cell_id}.pkl')
 
