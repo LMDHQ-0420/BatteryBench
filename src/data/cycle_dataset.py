@@ -135,7 +135,13 @@ class _CycleDatasetBase(Dataset):
 
     样本索引 self._samples: list of (battery_idx, useable_cycle)。
     battery 级 split 通过 split_battery_indices 控制。
+
+    REQUIRES_EOL：仅 RUL 任务需要真实 EOL 作标签，为 True 时排除未退化
+    (eol=None) 或寿命过短 (eol<=early_cycle) 的电池；soh_point/soh_traj
+    不依赖 EOL，未退化电池也保留（eol=None 时按记录总圈数处理）。
     """
+
+    REQUIRES_EOL = False
 
     def __init__(
         self,
@@ -168,7 +174,9 @@ class _CycleDatasetBase(Dataset):
             pkl_files = [f for f in pkl_files
                          if not any(fnmatch.fnmatch(os.path.basename(f), p) for p in patterns)]
 
-        # 加载所有电池，排除 eol<=early_cycle 或未退化的
+        # 加载所有电池。REQUIRES_EOL=True 时排除 eol<=early_cycle 或未退化的
+        # （RUL 任务需要真实 EOL 作标签，对齐 BatteryLife）；
+        # soh_point/soh_traj 不依赖 EOL，未退化电池也保留。
         self._batteries: List[dict] = []
         desc = f'Loading batteries ({self.__class__.__name__})'
         for pkl_path in tqdm(pkl_files, desc=desc, leave=False):
@@ -177,8 +185,8 @@ class _CycleDatasetBase(Dataset):
                                 n_grid=n_grid)
             if bat is None:
                 continue
-            if bat['eol'] is None or bat['eol'] <= early_cycle:
-                continue  # 对齐 BatteryLife：排除未跑到退化终点 / 寿命过短的电池
+            if self.REQUIRES_EOL and (bat['eol'] is None or bat['eol'] <= early_cycle):
+                continue
             self._batteries.append(bat)
 
         self._active_battery_idx = (split_battery_indices
@@ -194,7 +202,9 @@ class _CycleDatasetBase(Dataset):
                 continue
             bat = self._batteries[bidx]
             # useable 从 seq_len 到 early_cycle，但不超过有效圈数、不到 eol
-            upper = min(self.early_cycle, bat['valid_cycles'], bat['eol'] - 1)
+            # （eol=None 表示未退化，此时不设上限，退化终点用 valid_cycles 代替）
+            eol_bound = bat['valid_cycles'] if bat['eol'] is None else bat['eol'] - 1
+            upper = min(self.early_cycle, bat['valid_cycles'], eol_bound)
             for useable in range(self.seq_len, upper + 1):
                 self._samples.append((bidx, useable))
 
@@ -260,6 +270,8 @@ class RULDataset(_CycleDatasetBase):
     对齐 BatteryLife：预测总寿命而非剩余寿命。
     """
 
+    REQUIRES_EOL = True
+
     def __init__(self, *args, use_log_rul: bool = False, **kwargs):
         self.use_log_rul = use_log_rul
         super().__init__(*args, use_log_rul=use_log_rul, **kwargs)
@@ -308,9 +320,9 @@ class SOHTrajDataset(_CycleDatasetBase):
         traj = np.zeros(SOH_TRAJ_LEN, dtype=np.float32)
         traj[:full_len] = (soh_raw[:full_len] - thr) / (1.0 - thr)
 
-        # mask 只覆盖未来段 [useable, min(eol, full_len))
+        # mask 只覆盖未来段 [useable, min(eol, full_len))；eol=None（未退化）时取 full_len
         tmask = np.zeros(SOH_TRAJ_LEN, dtype=np.float32)
-        hi = min(eol, full_len)
+        hi = full_len if eol is None else min(eol, full_len)
         if hi > useable:
             tmask[useable:hi] = 1.0
 

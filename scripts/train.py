@@ -4,14 +4,14 @@ scripts/train.py — 训练单个模型
 用法:
     python scripts/train.py --domain li_ion --model gru --task rul
     python scripts/train.py --domain li_ion --model all --task soh_point
-    python scripts/train.py --domain three_level --model gru --task rul
+    python scripts/train.py --domain four_level --model gru --task rul
     python scripts/train.py --domain li_ion --model batlinet --task rul --split_idx 2
 
 参数:
     --domain      数据域，见 configs/domains/
     --model       模型名称，或 all 跑全部
     --task        rul | soh_point | soh_traj  （默认读 config data.task）
-    --split_idx   只跑第几个 split（1-based）。three_level 忽略此参数
+    --split_idx   只跑第几个 split（1-based）。four_level 忽略此参数
     --seed        随机种子，默认 42
     --config      config 文件路径，默认 configs/default.yaml
     --save_dir    结果保存根目录，默认 results/<domain>/<task>
@@ -65,13 +65,13 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
     os.makedirs(model_save_dir, exist_ok=True)
 
     exclude_pattern = d_cfg.get('exclude_pattern', None)
-    train_dirs      = d_cfg.get('train_dirs', []) if strategy == 'three_level' else None
+    train_dirs      = d_cfg.get('train_dirs', []) if strategy == 'four_level' else None
     dirs = train_dirs if train_dirs else get_pkl_dir(d_cfg)
 
     full_ds = _build_full_dataset(spec, cfg, dirs, exclude_pattern)
     all_splits = make_battery_splits(full_ds, cfg, seed=42)
 
-    if strategy == 'three_level':
+    if strategy == 'four_level':
         splits, split_offset = all_splits, 0
     elif split_idx is not None:
         if split_idx < 1 or split_idx > len(all_splits):
@@ -85,7 +85,7 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
         all_metrics = []
         for i, split in enumerate(splits):
             si = i + split_offset + 1
-            label = 'best' if strategy == 'three_level' else f'split{si}'
+            label = 'best' if strategy == 'four_level' else f'split{si}'
             train_ds = split['train']
             test_ds  = split['test'] if split['test'] is not None else split['val']
             print(f'\n--- Split {si}/{len(all_splits)} | train={len(train_ds)} test={len(test_ds)} ---')
@@ -110,7 +110,7 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
     # ── 神经网络模型：train_fn(model, train_loader, val_loader, cfg, save_path) ──
     for i, split in enumerate(splits):
         si = i + split_offset + 1
-        label = 'best' if strategy == 'three_level' else f'split{si}'
+        label = 'best' if strategy == 'four_level' else f'split{si}'
         train_ds, val_ds = split['train'], split['val']
         print(f'\n--- Split {si}/{len(all_splits)} | train={len(train_ds)} val={len(val_ds)} ---')
         if len(train_ds) == 0 or len(val_ds) == 0:
@@ -137,7 +137,7 @@ def main():
     parser.add_argument('--task',      default=None, choices=list(ALL_TASKS),
                         help='rul | soh_point | soh_traj. Defaults to config data.task.')
     parser.add_argument('--split_idx', type=int, default=None,
-                        help='Only run this split (1-based). Ignored for three_level.')
+                        help='Only run this split (1-based). Ignored for four_level.')
     parser.add_argument('--seed',      type=int, default=None,
                         help='Random seed. If not set, no seed is fixed.')
     parser.add_argument('--gpu',       type=int, default=None,

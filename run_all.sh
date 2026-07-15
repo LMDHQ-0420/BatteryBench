@@ -27,7 +27,7 @@ JOB_THREADS=3
 
 # ── 任务列表 ──────────────────────────────────────────────────────────────────
 
-DOMAINS=(li_ion calb na_ion zn_ion three_level)
+DOMAINS=(li_ion calb na_ion zn_ion four_level)
 
 declare -A TASK_MODELS
 TASK_MODELS[rul]="autoformer batlinet bigru bilstm cnn dlinear gru ic2ml itransformer lstm micn mlp patchtst severson timemixer transformer"

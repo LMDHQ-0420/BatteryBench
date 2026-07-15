@@ -4,10 +4,10 @@ scripts/evaluate.py — 评估已训练的 checkpoint（多样本 + attention ma
 用法:
     python scripts/evaluate.py --domain li_ion --model gru --task rul
     python scripts/evaluate.py --domain li_ion --model all --task soh_point
-    python scripts/evaluate.py --domain three_level --model gru --task rul
+    python scripts/evaluate.py --domain four_level --model gru --task rul
 
 random/stratified: 逐 split 评估其 test 子集，报告 mean/std。
-three_level: 对每个 test_set（L1/L2/L3）独立加载并评估，按 level 加权平均。
+four_level: 对每个 test_set（L1/L2/L3/L4）独立加载并评估，按 level 加权平均。
 """
 
 import os
@@ -83,11 +83,11 @@ def evaluate_one_model(model_name, task, domain, cfg, save_dir, device):
 
     model_save_dir = os.path.join(save_dir, model_name)
     exclude_pattern = d_cfg.get('exclude_pattern', None)
-    train_dirs      = d_cfg.get('train_dirs', []) if strategy == 'three_level' else None
+    train_dirs      = d_cfg.get('train_dirs', []) if strategy == 'four_level' else None
     dirs = train_dirs if train_dirs else get_pkl_dir(d_cfg)
 
-    if strategy == 'three_level':
-        _eval_three_level(model_name, task, domain, spec, cfg, dirs,
+    if strategy == 'four_level':
+        _eval_four_level(model_name, task, domain, spec, cfg, dirs,
                           exclude_pattern, batch_size, model_save_dir, device)
         return
 
@@ -154,7 +154,7 @@ def _save_splits(all_metrics, domain, task, model_name, model_save_dir):
     print(f'  Saved → {result_path}')
 
 
-def _eval_three_level(model_name, task, domain, spec, cfg, train_dirs,
+def _eval_four_level(model_name, task, domain, spec, cfg, train_dirs,
                       exclude_pattern, batch_size, model_save_dir, device):
     d_cfg = cfg['data']
     test_sets = d_cfg.get('test_sets', [])
@@ -225,7 +225,7 @@ def _eval_three_level(model_name, task, domain, spec, cfg, train_dirs,
                                 'n_cells': sum(n for _, n in pairs)}
         print(f'  {level}: ' + '  '.join(f'{k.upper()}={level_summary[level][k]:.4f}' for k in keys))
     with open(os.path.join(model_save_dir, 'results.json'), 'w') as f:
-        json.dump({'domain': 'three_level', 'task': task, 'model': model_name,
+        json.dump({'domain': 'four_level', 'task': task, 'model': model_name,
                    'test_sets': all_results, 'level_summary': level_summary}, f, indent=2)
     print(f'  Saved → {os.path.join(model_save_dir, "results.json")}')
 

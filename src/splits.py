@@ -5,9 +5,9 @@ splits.py — 数据集划分策略
 
   random     — 随机打乱后按比例分 train/val/test
   stratified — 按 stratify_by 字段分层抽样，保证每个组在 train/val/test 中均有代表
-  three_level — 三层泛化阶梯划分：
+  four_level — 四层泛化阶梯划分：
                  train/val 来自固定 train_dirs（按 cathode_material 分层抽 val_ratio 作 val）
-                 test 来自固定 test_sets（每个测试集独立，附带 level 标签 L1/L2/L3）
+                 test 来自固定 test_sets（每个测试集独立，附带 level 标签 L1/L2/L3/L4）
                  返回 1 个 split，test 为 None（测试集独立加载）
 
 stratify_by 可选值（stratified 专用）：
@@ -86,7 +86,7 @@ def make_battery_splits(ds, cfg: dict, seed: int = 42) -> List[Dict]:
         {'train': <dataset子集>, 'val': <dataset子集>, 'test': <dataset子集或None>}
 
     在电池级别 split 后展开到样本，保证同一电池所有样本同属 train/val/test（防泄露）。
-    three_level 模式下 test 为 None（测试集独立加载）。
+    four_level 模式下 test 为 None（测试集独立加载）。
     """
     d_cfg      = cfg.get('data', {})
     strategy   = d_cfg.get('split_strategy', 'random')
@@ -101,7 +101,7 @@ def make_battery_splits(ds, cfg: dict, seed: int = 42) -> List[Dict]:
         stratify_by = d_cfg.get('stratify_by', 'cathode_material')
         idx_splits = _stratified_splits(ds.get_battery_meta(), stratify_by,
                                         val_ratio, test_ratio, n_splits, seed)
-    elif strategy == 'three_level':
+    elif strategy == 'four_level':
         # val/train from pool; test sets loaded separately in scripts
         meta = ds.get_battery_meta()
         by_chem = defaultdict(list)

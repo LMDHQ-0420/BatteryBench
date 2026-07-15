@@ -30,7 +30,7 @@ SLOTS_PER_GPU=3
 TOTAL_SLOTS=$(( ${#GPUS[@]} * SLOTS_PER_GPU ))
 JOB_THREADS=3
 
-DOMAINS=(li_ion calb na_ion zn_ion three_level)
+DOMAINS=(li_ion calb na_ion zn_ion four_level)
 MODELS="autoformer batlinet bigru bilstm cnn dlinear gru ic2ml itransformer lstm micn mlp patchtst severson timemixer transformer"
 
 JOBS=()

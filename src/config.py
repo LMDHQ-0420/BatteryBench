@@ -12,7 +12,7 @@ DOMAIN_CFG = {
     'na_ion':   'configs/domains/na_ion.yaml',
     'zn_ion':   'configs/domains/zn_ion.yaml',
     'calb':     'configs/domains/calb.yaml',
-    'three_level': 'configs/domains/three_level.yaml',
+    'four_level': 'configs/domains/four_level.yaml',
 }
 
 

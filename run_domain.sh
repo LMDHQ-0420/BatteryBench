@@ -2,8 +2,8 @@
 # run_domain.sh — 并发训练指定 domain 下所有 (task, model) 组合
 # 用法: bash run_domain.sh <domain> [gpu0 gpu1 ...]
 #   例: bash run_domain.sh li_ion
-#       bash run_domain.sh three_level 0 1
-# domain 可选: li_ion | calb | na_ion | zn_ion | three_level
+#       bash run_domain.sh four_level 0 1
+# domain 可选: li_ion | calb | na_ion | zn_ion | four_level
 
 set -euo pipefail
 

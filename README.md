@@ -36,14 +36,15 @@ Each domain trains on one chemistry pool and evaluates with held-out splits.
 | `na_ion` | Na-ion cells |
 | `zn_ion` | Zn-ion cells |
 
-**Three-level generalization** (`--domain three_level`)  
-Fixed train pool; three held-out test tiers:
+**Four-level generalization** (`--domain four_level`)  
+Fixed train pool; four held-out test tiers:
 
 | Level | Generalization | Example test sets |
 |-------|---------------|-------------------|
-| L1 | Same chemistry, cross-dataset | HUST_batch8, MATR_b4 |
-| L2 | Li-ion, cross-cathode | CALCE, HNEI |
-| L3 | Cross-ion system | NAion, ZNion |
+| L1 | Same chemistry, same dataset, cross-batch | HUST_batch8/9 |
+| L2 | Same chemistry, cross-dataset (zero-shot charge/discharge protocol) | MATR_b4 |
+| L3 | Li-ion, cross-cathode | CALCE, HNEI |
+| L4 | Cross-ion system | NAion, ZNion |
 
 ## Evaluation Metrics
 
@@ -110,7 +111,7 @@ Training logs go to `log/<timestamp>/<domain>_<task>_<model>.log`.
 data:
   task: rul              # rul | soh_point | soh_traj
   n_future: 100          # trajectory length for soh_traj
-  split_strategy: random # random | stratified | three_level
+  split_strategy: random # random | stratified | four_level
   n_cycles: 100          # observation window length
   n_grid: 200            # voltage grid resolution
 
@@ -168,13 +169,13 @@ Then point `train_fn` in the registry to it.
 BatteryBench/
 ├── configs/
 │   ├── default.yaml
-│   └── domains/           li_ion / calb / na_ion / zn_ion / three_level
+│   └── domains/           li_ion / calb / na_ion / zn_ion / four_level
 ├── scripts/
 │   ├── train.py           --domain --model --task --gpu
 │   └── evaluate.py        --domain --model --task --gpu
 ├── src/
 │   ├── data/cycle_dataset.py   RULDataset / SOHPointDataset / SOHTrajDataset (multi-sample + attn mask)
-│   ├── splits.py               random / stratified / three_level split strategies
+│   ├── splits.py               random / stratified / four_level split strategies
 │   ├── evaluate/
 │   │   ├── rul/evaluate.py
 │   │   ├── soh_point/evaluate.py
@@ -204,7 +205,7 @@ BatteryBench/
 
 ## Results
 
-All metrics reported as mean over 3 random splits (standard domains) or weighted mean over test sets per level (three-level). MAPE and ACC15 are in [0, 1] range (not ×100).
+All metrics reported as mean over 3 random splits (standard domains) or weighted mean over test sets per level (four-level). MAPE and ACC15 are in [0, 1] range (not ×100).
 
 ### Table 1 — Standard Domains (Li-ion / CALB / Na-ion / Zn-ion)
 
@@ -233,22 +234,22 @@ All metrics reported as mean over 3 random splits (standard domains) or weighted
 
 | Model | Li-ion<br>MAPE | Li-ion<br>RMSE | CALB<br>MAPE | CALB<br>RMSE | Na-ion<br>MAPE | Na-ion<br>RMSE | Zn-ion<br>MAPE | Zn-ion<br>RMSE |
 |-------|--------|--------|--------|--------|--------|--------|--------|--------|
-| Autoformer | 0.0227 | 0.0296 | 0.0030 | 0.0076 | 0.0144 | 0.0159 | 0.0210 | 0.0344 |
-| BatLiNet | 0.0191 | 0.0256 | 0.0061 | 0.0072 | 0.0072 | 0.0079 | 0.0214 | 0.0289 |
-| BiGRU | 0.0126 | 0.0173 | 0.0009 | 0.0013 | 0.0115 | 0.0131 | 0.0196 | 0.0369 |
-| BiLSTM | 0.0138 | 0.0187 | 0.0016 | 0.0027 | 0.0110 | 0.0126 | 0.0181 | 0.0371 |
-| CNN | 0.0127 | 0.0175 | 0.0047 | 0.0060 | 0.0060 | 0.0072 | 0.0120 | 0.0199 |
-| DLinear | 0.0351 | 0.0425 | 0.0026 | 0.0032 | 0.0152 | 0.0171 | 0.0207 | 0.0349 |
-| GRU | 0.0120 | 0.0161 | 0.0025 | 0.0040 | 0.0142 | 0.0157 | 0.0190 | 0.0369 |
-| IC2ML | 0.0131 | 0.0202 | 0.0017 | 0.0021 | 0.0093 | 0.0104 | 0.0172 | 0.0287 |
-| iTransformer | 0.0224 | 0.0287 | 0.0017 | 0.0024 | 0.0155 | 0.0168 | 0.0182 | 0.0351 |
-| LSTM | 0.0140 | 0.0189 | 0.0017 | 0.0039 | 0.0134 | 0.0154 | 0.0184 | 0.0373 |
-| MICN | 0.0146 | 0.0197 | 0.0026 | 0.0044 | 0.0113 | 0.0133 | 0.0201 | 0.0337 |
-| MLP | 0.0289 | 0.0344 | 0.0025 | 0.0032 | 0.0114 | 0.0126 | 0.0201 | 0.0337 |
-| PatchTST | 0.0161 | 0.0203 | 0.0100 | 0.0153 | 0.0185 | 0.0204 | 0.0083 | 0.0147 |
-| Severson | 0.0341 | 0.0399 | 0.0333 | 0.0599 | 0.0113 | 0.0127 | 0.0148 | 0.0212 |
-| TimeMixer | 0.0153 | 0.0204 | 0.0022 | 0.0029 | 0.0103 | 0.0117 | 0.0179 | 0.0317 |
-| Transformer | 0.0132 | 0.0181 | 0.0009 | 0.0011 | 0.0084 | 0.0091 | 0.0191 | 0.0361 |
+| Autoformer | 0.0235 | 0.0290 | 0.0030 | 0.0072 | 0.0216 | 0.0228 | 0.0236 | 0.0384 |
+| BatLiNet | 0.0225 | 0.0275 | 0.0049 | 0.0059 | 0.0112 | 0.0126 | 0.0129 | 0.0218 |
+| BiGRU | 0.0101 | 0.0139 | 0.0014 | 0.0024 | 0.0255 | 0.0269 | 0.0163 | 0.0277 |
+| BiLSTM | 0.0101 | 0.0142 | 0.0020 | 0.0041 | 0.0209 | 0.0230 | 0.0188 | 0.0329 |
+| CNN | 0.0100 | 0.0144 | 0.0044 | 0.0058 | 0.0077 | 0.0095 | 0.0112 | 0.0190 |
+| DLinear | 0.0320 | 0.0395 | 0.0025 | 0.0031 | 0.0292 | 0.0298 | 0.0253 | 0.0429 |
+| GRU | 0.0086 | 0.0123 | 0.0015 | 0.0023 | 0.0232 | 0.0256 | 0.0241 | 0.0427 |
+| IC2ML | 0.0102 | 0.0154 | 0.0017 | 0.0020 | 0.0039 | 0.0045 | 0.0133 | 0.0236 |
+| iTransformer | 0.0189 | 0.0253 | 0.0024 | 0.0028 | 0.0279 | 0.0279 | 0.0208 | 0.0396 |
+| LSTM | 0.0110 | 0.0152 | 0.0025 | 0.0086 | 0.0169 | 0.0190 | 0.0233 | 0.0451 |
+| MICN | 0.0125 | 0.0180 | 0.0058 | 0.0108 | 0.0211 | 0.0248 | 0.0204 | 0.0357 |
+| MLP | 0.0282 | 0.0325 | 0.0025 | 0.0031 | 0.0245 | 0.0255 | 0.0259 | 0.0420 |
+| PatchTST | 0.0169 | 0.0217 | 0.0084 | 0.0110 | 0.0255 | 0.0281 | 0.0066 | 0.0131 |
+| Severson | 0.0326 | 0.0379 | 0.0205 | 0.0205 | 0.0236 | 0.0264 | 0.0245 | 0.0574 |
+| TimeMixer | 0.0119 | 0.0166 | 0.0026 | 0.0032 | 0.0239 | 0.0258 | 0.0215 | 0.0371 |
+| Transformer | 0.0099 | 0.0143 | 0.0009 | 0.0011 | 0.0150 | 0.0164 | 0.0142 | 0.0277 |
 
 #### SOH Trajectory — MAPE ↓ / RMSE ↓
 
@@ -273,11 +274,13 @@ All metrics reported as mean over 3 random splits (standard domains) or weighted
 
 ---
 
-### Table 2 — Three-Level Generalization
+### Table 2 — Four-Level Generalization
 
-Train pool: HUST + MATR + RWTH + SDU + Stanford + Tongji + ISU-ILCC + MICH + CALB + XJTU; test on L1 (same chemistry, cross-dataset), L2 (Li-ion cross-cathode), L3 (cross-ion system).
+Train pool: HUST + MATR + RWTH + SDU + Stanford + Tongji + ISU-ILCC + MICH + CALB + XJTU; test on L1 (same chemistry, same dataset, cross-batch), L2 (same chemistry, cross-dataset, zero-shot charge/discharge protocol), L3 (Li-ion, cross-cathode), L4 (cross-ion system).
 
 #### RUL — MAPE ↓ / ACC15 ↑
+
+RUL is unaffected by the EOL-filtering fix (`REQUIRES_EOL` keeps RUL's original eligibility rule) and has not been re-evaluated against the renumbered four-level splits, so it still reports the prior three-tier grouping (L1 = MATR_b4, L2 = CALCE + HNEI, L3 = Na-ion + Zn-ion combined):
 
 | Model | L1<br>MAPE | L1<br>ACC15 | L2<br>MAPE | L2<br>ACC15 | L3<br>MAPE | L3<br>ACC15 |
 |-------|-----------|------------|-----------|------------|-----------|------------|
@@ -300,26 +303,28 @@ Train pool: HUST + MATR + RWTH + SDU + Stanford + Tongji + ISU-ILCC + MICH + CAL
 
 #### SOH Point — MAPE ↓ / RMSE ↓
 
-| Model | L1<br>MAPE | L1<br>RMSE | L2<br>MAPE | L2<br>RMSE | L3<br>MAPE | L3<br>RMSE |
-|-------|-----------|-----------|-----------|-----------|-----------|-----------|
-| Autoformer | 0.0286 | 0.0307 | 0.0440 | 0.0431 | 0.0504 | 0.0591 |
-| BatLiNet | 0.0158 | 0.0181 | 0.0184 | 0.0207 | 0.0273 | 0.0310 |
-| BiGRU | 0.0158 | 0.0174 | 0.0281 | 0.0273 | 0.0472 | 0.0491 |
-| BiLSTM | 0.0192 | 0.0208 | 0.0323 | 0.0312 | 0.0597 | 0.0628 |
-| CNN | 0.0088 | 0.0103 | 0.0298 | 0.0294 | 0.0484 | 0.0491 |
-| DLinear | 0.0114 | 0.0133 | 0.0434 | 0.0429 | 0.0520 | 0.0522 |
-| GRU | 0.0193 | 0.0211 | 0.0376 | 0.0361 | 0.0452 | 0.0487 |
-| IC2ML | 0.0119 | 0.0132 | 0.0082 | 0.0105 | 0.0163 | 0.0252 |
-| iTransformer | 0.0120 | 0.0143 | 0.0458 | 0.0450 | 0.0461 | 0.0560 |
-| LSTM | 0.0101 | 0.0122 | 0.0322 | 0.0313 | 0.0715 | 0.0739 |
-| MICN | 0.0145 | 0.0183 | 0.0368 | 0.0367 | 0.0675 | 0.0682 |
-| MLP | 0.0127 | 0.0153 | 0.0348 | 0.0346 | 0.0592 | 0.0686 |
-| PatchTST | 0.0190 | 0.0211 | 0.0735 | 0.0729 | 0.0507 | 0.0552 |
-| Severson | 0.0255 | 0.3493 | 0.0435 | 0.0433 | 0.0514 | 0.0509 |
-| TimeMixer | 0.0174 | 0.0185 | 0.0481 | 0.0459 | 0.0602 | 0.0600 |
-| Transformer | 0.0242 | 0.0248 | 0.0441 | 0.0432 | 0.0515 | 0.0518 |
+| Model | L1<br>MAPE | L1<br>RMSE | L2<br>MAPE | L2<br>RMSE | L3<br>MAPE | L3<br>RMSE | L4<br>MAPE | L4<br>RMSE |
+|-------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+| Autoformer | 0.0120 | 0.0148 | 0.0200 | 0.0217 | 0.0423 | 0.0423 | 0.0573 | 0.0657 |
+| BatLiNet | 0.0097 | 0.0109 | 0.0148 | 0.0160 | 0.0248 | 0.0263 | 0.0301 | 0.0346 |
+| BiGRU | 0.0021 | 0.0034 | 0.0178 | 0.0184 | 0.0337 | 0.0337 | 0.0549 | 0.0576 |
+| BiLSTM | 0.0025 | 0.0041 | 0.0050 | 0.0063 | 0.0333 | 0.0325 | 0.0622 | 0.0653 |
+| CNN | 0.0036 | 0.0051 | 0.0055 | 0.0076 | 0.0321 | 0.0317 | 0.0570 | 0.0589 |
+| DLinear | 0.0273 | 0.0275 | 0.0143 | 0.0159 | 0.0456 | 0.0447 | 0.0565 | 0.0582 |
+| GRU | 0.0036 | 0.0054 | 0.0268 | 0.0273 | 0.0331 | 0.0320 | 0.0561 | 0.0626 |
+| IC2ML | 0.0015 | 0.0018 | 0.0172 | 0.0176 | 0.0104 | 0.0128 | 0.0175 | 0.0274 |
+| iTransformer | 0.0229 | 0.0230 | 0.0189 | 0.0197 | 0.0438 | 0.0433 | 0.0567 | 0.0590 |
+| LSTM | 0.0036 | 0.0059 | 0.0079 | 0.0095 | 0.0277 | 0.0273 | 0.0627 | 0.0648 |
+| MICN | 0.0049 | 0.0064 | 0.0167 | 0.0188 | 0.0399 | 0.0398 | 0.1143 | 0.1171 |
+| MLP | 0.0105 | 0.0127 | 0.0311 | 0.0317 | 0.0425 | 0.0427 | 0.1171 | 0.1232 |
+| PatchTST | 0.0051 | 0.0070 | 0.0139 | 0.0153 | 0.0547 | 0.0541 | 0.0490 | 0.0499 |
+| Severson | 0.0289 | 0.0297 | 0.0107 | 0.0369 | 0.0461 | 0.0459 | 0.0560 | 0.0568 |
+| TimeMixer | 0.0036 | 0.0052 | 0.0193 | 0.0210 | 0.0350 | 0.0343 | 0.0583 | 0.0586 |
+| Transformer | 0.0019 | 0.0033 | 0.0146 | 0.0158 | 0.0451 | 0.0447 | 0.0564 | 0.0617 |
 
 #### SOH Trajectory — MAPE ↓ / RMSE ↓
+
+soh_traj has not yet been retrained against the EOL-filtering fix; the table below still reports the prior three-tier grouping (L1 = MATR_b4, L2 = CALCE + HNEI, L3 = Na-ion + Zn-ion combined) and will be replaced once soh_traj is re-evaluated on the four-level splits:
 
 | Model | L1<br>MAPE | L1<br>RMSE | L2<br>MAPE | L2<br>RMSE | L3<br>MAPE | L3<br>RMSE |
 |-------|-----------|-----------|-----------|-----------|-----------|-----------|
