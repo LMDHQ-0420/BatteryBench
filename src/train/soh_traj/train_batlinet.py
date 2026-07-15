@@ -30,19 +30,22 @@ def train_one_epoch(model, loader, optimizer, device):
     return total_loss / max(len(loader), 1)
 
 
-def validate(model, loader, device, ref_loader=None):
+def _build_reference(loader, device):
+    """遍历一次 train_loader，拼出参考池张量。数据集内容不随 epoch 变化，
+    只需在训练开始前建一次，不必每个 epoch 重建（原实现的主要性能瓶颈）。"""
+    ref_Qs, ref_ys = [], []
+    with torch.no_grad():
+        for batch in loader:
+            ref_Qs.append(batch['Q'])
+            ref_ys.append(batch['soh_traj'])
+    return torch.cat(ref_Qs, dim=0).to(device), torch.cat(ref_ys, dim=0).to(device)
+
+
+def validate(model, loader, device, ref_Q=None, ref_y=None):
     model.eval()
 
-    if ref_loader is not None:
-        ref_Qs, ref_ys = [], []
-        with torch.no_grad():
-            for batch in ref_loader:
-                ref_Qs.append(batch['Q'])
-                ref_ys.append(batch['soh_traj'])
-        model.set_reference(
-            torch.cat(ref_Qs, dim=0).to(device),
-            torch.cat(ref_ys, dim=0).to(device),
-        )
+    if ref_Q is not None:
+        model.set_reference(ref_Q, ref_y)
 
     preds, trues = [], []
     with torch.no_grad():
@@ -76,9 +79,11 @@ def train(model, train_loader, val_loader, config, save_path, device='cuda'):
     no_improve = 0
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
+    ref_Q, ref_y = _build_reference(train_loader, device)
+
     for epoch in range(1, epochs + 1):
         train_loss = train_one_epoch(model, train_loader, optimizer, device)
-        val_mae    = validate(model, val_loader, device, ref_loader=train_loader)
+        val_mae    = validate(model, val_loader, device, ref_Q=ref_Q, ref_y=ref_y)
         scheduler.step()
 
         if val_mae < best_val_mae:

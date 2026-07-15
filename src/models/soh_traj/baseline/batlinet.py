@@ -138,14 +138,11 @@ class BatLiNet(nn.Module):
             y_ref = y_ref[idx]
             R = self.n_ref
 
-        pred_inter_list = []
-        for b_idx in range(B):
-            Q_b = Q[b_idx:b_idx+1].expand(R, *Q.shape[1:])
-            dQ  = Q_b - Q_ref
-            pred_diff = self._inter_pred(dQ)                              # (R, n_future)
-            pred_inter_b = (pred_diff + y_ref).mean(dim=0).unsqueeze(0)  # 论文 Eq.10: mean
-            pred_inter_list.append(pred_inter_b)
-
-        pred_inter = torch.cat(pred_inter_list, dim=0)   # (B, n_future)
+        # 所有 (b_idx, ref_idx) 组合一次性 batch 过 CNN，等价于逐样本 for 循环
+        # （eval 模式下 BatchNorm 用 running stats，与 batch 组成无关，结果一致）
+        n_future = y_ref.shape[-1]
+        dQ = (Q.unsqueeze(1) - Q_ref.unsqueeze(0)).reshape(B * R, *Q.shape[1:])  # (B*R, S, N)
+        pred_diff = self._inter_pred(dQ).view(B, R, n_future)
+        pred_inter = (pred_diff + y_ref.unsqueeze(0)).mean(dim=1)   # (B, n_future)  论文 Eq.10: mean
         pred = self.alpha * pred_intra + (1 - self.alpha) * pred_inter
         return pred, None

@@ -280,26 +280,26 @@ Train pool: HUST + MATR + RWTH + SDU + Stanford + Tongji + ISU-ILCC + MICH + CAL
 
 #### RUL — MAPE ↓ / ACC15 ↑
 
-RUL is unaffected by the EOL-filtering fix (`REQUIRES_EOL` keeps RUL's original eligibility rule) and has not been re-evaluated against the renumbered four-level splits, so it still reports the prior three-tier grouping (L1 = MATR_b4, L2 = CALCE + HNEI, L3 = Na-ion + Zn-ion combined):
+RUL is unaffected by the EOL-filtering fix (`REQUIRES_EOL` keeps RUL's original eligibility rule). L1 (HUST batch 8/9) is structurally empty for RUL: all 16 cells have `eol=None` (undegraded within the 100-cycle record) and are excluded by `RULDataset.REQUIRES_EOL`, so there is no data to report for that column. L2/L3/L4 below are the prior three-tier RUL results remapped onto the new numbering (old L1 → L2 = MATR_b4, old L2 → L3 = CALCE + HNEI, old L3 → L4 = Na-ion + Zn-ion combined); RUL has not been retrained since the EOL fix (it wasn't affected):
 
-| Model | L1<br>MAPE | L1<br>ACC15 | L2<br>MAPE | L2<br>ACC15 | L3<br>MAPE | L3<br>ACC15 |
-|-------|-----------|------------|-----------|------------|-----------|------------|
-| Autoformer | 0.4160 | 0.0853 | 0.7920 | 0.1878 | 2.2796 | 0.0377 |
-| BatLiNet | 0.3462 | 0.1593 | 0.7523 | 0.0322 | 1.2175 | 0.0373 |
-| BiGRU | 0.4021 | 0.1442 | 0.2919 | 0.4033 | 7.0625 | 0.0328 |
-| BiLSTM | 0.3339 | 0.1776 | 1.3372 | 0.0804 | 2.6961 | 0.0401 |
-| CNN | 0.4112 | 0.0451 | 0.3441 | 0.2515 | 16.4001 | 0.0280 |
-| DLinear | 0.1920 | 0.5127 | 1.2398 | 0.0733 | 3.0862 | 0.0492 |
-| GRU | 0.2120 | 0.3833 | 0.3073 | 0.4756 | 2.6966 | 0.0403 |
-| IC2ML | 0.3576 | 0.1360 | 0.4532 | 0.3344 | 1.5016 | 0.1168 |
-| iTransformer | 0.3001 | 0.1822 | 0.9896 | 0.1063 | 5.2083 | 0.0731 |
-| LSTM | 0.3011 | 0.1531 | 0.4726 | 0.1519 | 2.6420 | 0.0251 |
-| MICN | 0.4186 | 0.0129 | 0.9501 | 0.0304 | 1.7492 | 0.0373 |
-| MLP | 0.3074 | 0.1260 | 0.6851 | 0.2904 | 2.2399 | 0.0284 |
-| PatchTST | 0.3008 | 0.1796 | 1.5958 | 0.1256 | 1.4539 | 0.0395 |
-| Severson | 0.2569 | 0.5356 | 1.1674 | 0.0759 | 3.1323 | 0.0548 |
-| TimeMixer | 0.4011 | 0.0276 | 0.7065 | 0.2026 | 1.2654 | 0.0640 |
-| Transformer | 0.3193 | 0.1762 | 1.1758 | 0.2241 | 3.4670 | 0.0546 |
+| Model | L1<br>MAPE | L1<br>ACC15 | L2<br>MAPE | L2<br>ACC15 | L3<br>MAPE | L3<br>ACC15 | L4<br>MAPE | L4<br>ACC15 |
+|-------|-----------|------------|-----------|------------|-----------|------------|-----------|------------|
+| Autoformer | -- | -- | 0.4160 | 0.0853 | 0.7920 | 0.1878 | 2.2796 | 0.0377 |
+| BatLiNet | -- | -- | 0.3462 | 0.1593 | 0.7523 | 0.0322 | 1.2175 | 0.0373 |
+| BiGRU | -- | -- | 0.4021 | 0.1442 | 0.2919 | 0.4033 | 7.0625 | 0.0328 |
+| BiLSTM | -- | -- | 0.3339 | 0.1776 | 1.3372 | 0.0804 | 2.6961 | 0.0401 |
+| CNN | -- | -- | 0.4112 | 0.0451 | 0.3441 | 0.2515 | 16.4001 | 0.0280 |
+| DLinear | -- | -- | 0.1920 | 0.5127 | 1.2398 | 0.0733 | 3.0862 | 0.0492 |
+| GRU | -- | -- | 0.2120 | 0.3833 | 0.3073 | 0.4756 | 2.6966 | 0.0403 |
+| IC2ML | -- | -- | 0.3576 | 0.1360 | 0.4532 | 0.3344 | 1.5016 | 0.1168 |
+| iTransformer | -- | -- | 0.3001 | 0.1822 | 0.9896 | 0.1063 | 5.2083 | 0.0731 |
+| LSTM | -- | -- | 0.3011 | 0.1531 | 0.4726 | 0.1519 | 2.6420 | 0.0251 |
+| MICN | -- | -- | 0.4186 | 0.0129 | 0.9501 | 0.0304 | 1.7492 | 0.0373 |
+| MLP | -- | -- | 0.3074 | 0.1260 | 0.6851 | 0.2904 | 2.2399 | 0.0284 |
+| PatchTST | -- | -- | 0.3008 | 0.1796 | 1.5958 | 0.1256 | 1.4539 | 0.0395 |
+| Severson | -- | -- | 0.2569 | 0.5356 | 1.1674 | 0.0759 | 3.1323 | 0.0548 |
+| TimeMixer | -- | -- | 0.4011 | 0.0276 | 0.7065 | 0.2026 | 1.2654 | 0.0640 |
+| Transformer | -- | -- | 0.3193 | 0.1762 | 1.1758 | 0.2241 | 3.4670 | 0.0546 |
 
 #### SOH Point — MAPE ↓ / RMSE ↓
 
