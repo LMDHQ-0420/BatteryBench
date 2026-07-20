@@ -280,7 +280,7 @@ Train pool: HUST + MATR + RWTH + SDU + Stanford + Tongji + ISU-ILCC + MICH + CAL
 
 #### RUL — MAPE ↓ / ACC15 ↑
 
-RUL is unaffected by the EOL-filtering fix (`REQUIRES_EOL` keeps RUL's original eligibility rule). L1 (HUST batch 8/9) is structurally empty for RUL: all 16 cells have `eol=None` (undegraded within the 100-cycle record) and are excluded by `RULDataset.REQUIRES_EOL`, so there is no data to report for that column. L2/L3/L4 below are the prior three-tier RUL results remapped onto the new numbering (old L1 → L2 = MATR_b4, old L2 → L3 = CALCE + HNEI, old L3 → L4 = Na-ion + Zn-ion combined); RUL has not been retrained since the EOL fix (it wasn't affected):
+L1 (HUST batch 8/9) is structurally empty for RUL: all 16 cells have `eol=None` (undegraded within the 100-cycle record) and are excluded by `RULDataset.REQUIRES_EOL`, so there is no data to report for that column:
 
 | Model | L1<br>MAPE | L1<br>ACC15 | L2<br>MAPE | L2<br>ACC15 | L3<br>MAPE | L3<br>ACC15 | L4<br>MAPE | L4<br>ACC15 |
 |-------|-----------|------------|-----------|------------|-----------|------------|-----------|------------|
