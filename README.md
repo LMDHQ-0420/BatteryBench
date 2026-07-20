@@ -36,7 +36,7 @@ Each domain trains on one chemistry pool and evaluates with held-out splits.
 | `na_ion` | Na-ion cells |
 | `zn_ion` | Zn-ion cells |
 
-**Four-level generalization**
+**Four-level generalization**  
 Fixed train pool; four held-out test tiers:
 
 | Level | Generalization | Example test sets |
@@ -205,7 +205,7 @@ BatteryBench/
 
 ## Results
 
-All metrics reported as mean over 3 random splits (standard domains) or weighted mean over test sets per level (four-level). MAPE and ACC15 are in [0, 1] range (not ×100).
+All metrics reported as mean over 3 random splits (standard domains) or weighted mean over test sets per level (four-level). MAPE and ACC15 are in [0, 1] range.
 
 ### Table 1 — Standard Domains (Li-ion / CALB / Na-ion / Zn-ion)
 
