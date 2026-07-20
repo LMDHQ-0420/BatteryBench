@@ -36,7 +36,7 @@ Each domain trains on one chemistry pool and evaluates with held-out splits.
 | `na_ion` | Na-ion cells |
 | `zn_ion` | Zn-ion cells |
 
-**Four-level generalization** (`--domain four_level`)  
+**Four-level generalization**
 Fixed train pool; four held-out test tiers:
 
 | Level | Generalization | Example test sets |
