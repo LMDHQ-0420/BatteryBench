@@ -141,12 +141,20 @@ class Autoformer(nn.Module):
 
     def forward(self, batch: dict):
         x, mask = get_inputs(batch)           # (B, S, 3, L), (B, S)
+        B, S = x.shape[0], x.shape[1]
         x = flatten_cycles(x)                 # (B, S, 3*L)
-        h = self.input_proj(x) + self.pe[:, :x.shape[1], :]
+        h = self.input_proj(x)               # (B, S, d)
+        if S > 512:
+            stride = max(1, S // 512)
+            h    = F.avg_pool1d(h.permute(0,2,1), kernel_size=stride, stride=stride).permute(0,2,1)
+            mask = F.avg_pool1d(mask.unsqueeze(1).float(), kernel_size=stride, stride=stride).squeeze(1)
+            mask = (mask > 0).float()
+        S2 = h.shape[1]
+        h = h + self.pe[:, :S2, :]
         for layer in self.layers:
             h = layer(h)
         h = self.norm(h)
-        m = mask.unsqueeze(-1)                # (B, S, 1)
+        m = mask.unsqueeze(-1)                # (B, S2, 1)
         feat = (h * m).sum(1) / m.sum(1).clamp(min=1)        # masked mean
         pred = self.head(feat)                # (B, 1)
         return pred, None

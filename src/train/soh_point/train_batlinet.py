@@ -31,14 +31,22 @@ def train_one_epoch(model, loader, optimizer, device):
 
 
 def _build_reference(loader, device):
-    """遍历一次 train_loader，拼出参考池张量。数据集内容不随 epoch 变化，
-    只需在训练开始前建一次，不必每个 epoch 重建（原实现的主要性能瓶颈）。"""
+    """遍历一次 train_loader，拼出参考池张量。
+    full_cycle_mode 下各 batch 的 S_max 不同，先收集后统一 pad 再 cat。"""
     ref_Qs, ref_ys = [], []
     with torch.no_grad():
         for batch in loader:
-            ref_Qs.append(batch['Q'])
-            ref_ys.append(batch['soh_point'])
-    return torch.cat(ref_Qs, dim=0).to(device), torch.cat(ref_ys, dim=0).to(device)
+            ref_Qs.append(batch['Q'].cpu())   # (b, S_i, N)
+            ref_ys.append(batch['soh_point'].cpu())
+    # 统一 pad 到全局 S_max
+    S_max = max(q.shape[1] for q in ref_Qs)
+    padded = []
+    for q in ref_Qs:
+        pad = S_max - q.shape[1]
+        if pad > 0:
+            q = torch.cat([q, torch.zeros(q.shape[0], pad, q.shape[2])], dim=1)
+        padded.append(q)
+    return torch.cat(padded, dim=0).to(device), torch.cat(ref_ys, dim=0).to(device)
 
 
 def validate(model, loader, device, ref_Q=None, ref_y=None):

@@ -7,6 +7,7 @@ Output: (pred:(B,1), None)
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from src.models._masking import get_inputs, flatten_cycles
 
@@ -34,7 +35,12 @@ class MLP(nn.Module):
         x, _ = get_inputs(batch)              # (B, S, 3, L)
         B, S, C, L = x.shape
         x = flatten_cycles(x)                 # (B, S, 3*L)
+        xT = x.permute(0, 2, 1)              # (B, 3*L, S)
+        # coarse downsample when S is very large
+        if S > 2048:
+            stride = S // 1024
+            xT = F.avg_pool1d(xT, kernel_size=stride, stride=stride)
         # pool S → _FIXED_S so the Linear head sees a fixed input size
-        x = self.pool(x.permute(0, 2, 1)).permute(0, 2, 1)  # (B, _FIXED_S, 3*L)
-        pred = self.net(x.reshape(B, -1))
+        xT = self.pool(xT)                   # (B, 3*L, _FIXED_S)
+        pred = self.net(xT.permute(0, 2, 1).reshape(B, -1))
         return pred, None

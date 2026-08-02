@@ -9,6 +9,7 @@ Output: (pred:(B,1), None)
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from src.models._masking import get_inputs
 
@@ -70,6 +71,15 @@ class PatchTST(nn.Module):
     def forward(self, batch: dict):
         x, mask = get_inputs(batch)           # (B, S, 3, L), (B, S)
         B, S, C, L = x.shape
+        # coarse pool when S is very large before patching
+        if S > 2048:
+            stride_pre = max(1, S // 2048)
+            x    = F.avg_pool1d(x.reshape(B, S, C*L).permute(0,2,1),
+                                kernel_size=stride_pre, stride=stride_pre).permute(0,2,1).reshape(B,-1,C,L)
+            mask = F.avg_pool1d(mask.unsqueeze(1).float(),
+                                kernel_size=stride_pre, stride=stride_pre).squeeze(1)
+            mask = (mask > 0).float()
+            S = x.shape[1]
         x = self._revin_normalize(x, mask)    # (B, S, 3, L)
 
         xc = x.permute(0, 2, 1, 3).reshape(B * C, S, L)         # (B*C, S, L)

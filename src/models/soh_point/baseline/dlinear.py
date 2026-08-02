@@ -54,8 +54,12 @@ class DLinear(nn.Module):
 
     def forward(self, batch: dict):
         x, _ = get_inputs(batch)              # (B, S, 3, L)
+        B, S = x.shape[0], x.shape[1]
         x = flatten_cycles(x)                 # (B, S, F=3*L)
         xT = x.permute(0, 2, 1)               # (B, F, S)
+        if S > 2048:
+            stride = S // 1024
+            xT = F.avg_pool1d(xT, kernel_size=stride, stride=stride)
         xT = self.pool(xT)                    # (B, F, _FIXED_S)
         trend = self.decompose(xT)            # (B, F, _FIXED_S)
         seasonal = xT - trend

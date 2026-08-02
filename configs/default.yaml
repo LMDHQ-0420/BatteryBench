@@ -9,6 +9,7 @@ train:
   epochs: 10000
   patience: 30
   batch_size: 32
+  soh_point_batch_size: 8   # full_cycle_mode 下序列很长，需小 batch
   use_log_rul: false
 
 data:
@@ -20,7 +21,7 @@ data:
   n_grid: 200
   early_cycle: 100          # 观测窗口上限（多样本 seq_len..early_cycle）
   seq_len: 1                # 观测窗口下限（每电池从看1圈到看early_cycle圈各出一个样本）
-  sp_max_cycles: 5000       # soh_point full_cycle_mode：PE buffer 上限 / PatchTST pos_emb 上限
+  sp_max_cycles: 25000      # soh_point full_cycle_mode：PE buffer 上限 / PatchTST pos_emb 上限
   charge_discharge_length: 300
   val_ratio: 0.1
   test_ratio: 0.2

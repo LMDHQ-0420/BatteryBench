@@ -8,6 +8,7 @@ Output: (pred:(B,1), None)
 import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from src.models._masking import get_inputs, flatten_cycles, key_padding_mask
 
@@ -45,8 +46,17 @@ class Transformer(nn.Module):
 
     def forward(self, batch: dict):
         x, mask = get_inputs(batch)           # (B, S, 3, L), (B, S)
+        B, S = x.shape[0], x.shape[1]
         x = flatten_cycles(x)                 # (B, S, 3*L)
-        h = self.input_proj(x) + self.pe[:, :x.shape[1], :]
+        h = self.input_proj(x)               # (B, S, d)
+        # coarse pool when S is very large — attention is O(S²)
+        if S > 512:
+            stride = max(1, S // 512)
+            h    = F.avg_pool1d(h.permute(0,2,1), kernel_size=stride, stride=stride).permute(0,2,1)
+            mask = F.avg_pool1d(mask.unsqueeze(1).float(), kernel_size=stride, stride=stride).squeeze(1)
+            mask = (mask > 0).float()
+        S2 = h.shape[1]
+        h = h + self.pe[:, :S2, :]
         kpm = key_padding_mask(mask)
         h = self.encoder(h, src_key_padding_mask=kpm)
         m = mask.unsqueeze(-1)

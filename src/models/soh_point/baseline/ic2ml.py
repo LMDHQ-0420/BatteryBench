@@ -103,16 +103,24 @@ class IC2ML(nn.Module):
         mask = batch.get('curve_attn_mask')
         if mask is None:
             mask = torch.ones(B, S, device=Q.device, dtype=Q.dtype)
+
+        # coarse pool when S is large — inter-cycle attention is O(S²)
+        if S > 512:
+            stride = max(1, S // 512)
+            Q    = F.avg_pool1d(Q.permute(0,2,1), kernel_size=stride, stride=stride).permute(0,2,1)
+            mask = F.avg_pool1d(mask.unsqueeze(1).float(), kernel_size=stride, stride=stride).squeeze(1)
+            mask = (mask > 0).float()
+
         kpm = mask <= 0
 
         q1d = Q[:, :, ::self.stride]
         h1d = self.cycle_fcn(q1d)
-        h1d = h1d + self.pe[:, :S, :]
+        h1d = h1d + self.pe[:, :Q.shape[1], :]
         h1d = self.inter_attn(h1d, src_key_padding_mask=kpm)
         mm = mask.unsqueeze(-1)
         feat1d = (h1d * mm).sum(dim=1) / mm.sum(dim=1).clamp(min=1)
 
-        q2d = Q.unsqueeze(1)
+        q2d = batch['Q'].unsqueeze(1)          # use original Q for 2D inception
         feat2d = self.inception(q2d)
         feat2d = self.pool2d(feat2d).flatten(1)
         feat2d = self.proj2d(feat2d)

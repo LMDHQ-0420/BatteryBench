@@ -45,10 +45,14 @@ class TimeMixer(nn.Module):
 
     def forward(self, batch: dict):
         x, _ = get_inputs(batch)              # (B, S, 3, L)  未观测圈已置零
-        B = x.shape[0]
+        B, S = x.shape[0], x.shape[1]
         x = flatten_cycles(x)                 # (B, S, F)
         h  = self.input_proj(x)              # (B, S, d)
         hT = h.permute(0, 2, 1)             # (B, d, S)
+        # coarse downsample when S is very large to avoid CUDA AdaptiveAvgPool limits
+        if S > 2048:
+            stride = S // 1024
+            hT = F.avg_pool1d(hT, kernel_size=stride, stride=stride)
         scale_feats = []
         for pool, mixer, fixed_len in zip(self.pools, self.mixers, self.fixed_lens):
             hs = pool(hT)                        # (B, d, fixed_len)

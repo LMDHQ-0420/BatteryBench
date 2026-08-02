@@ -59,6 +59,8 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
     t_cfg         = cfg['train']
     strategy      = d_cfg.get('split_strategy', 'random')
     batch_size    = t_cfg.get('batch_size', 32)
+    if task == 'soh_point':
+        batch_size = t_cfg.get('soh_point_batch_size', batch_size)
     if spec.batch_size_cap:
         batch_size = min(batch_size, spec.batch_size_cap)
 

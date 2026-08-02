@@ -65,6 +65,7 @@ def _eval_dl(spec, cfg, task, model, test_ds, batch_size, device, scaler_path=No
     eol_thr = cfg['data'].get('eol_threshold', cfg['data'].get('soh_threshold', 0.80))
     loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=0,
                         collate_fn=soh_point_collate_fn if task == 'soh_point' else None)
+    if task == 'soh_traj':
         return evaluate_fn(model, loader, device,
                            n_future=cfg['data'].get('n_future', 5000),
                            eol_threshold=eol_thr)
@@ -79,6 +80,8 @@ def evaluate_one_model(model_name, task, domain, cfg, save_dir, device):
     t_cfg      = cfg['train']
     strategy   = d_cfg.get('split_strategy', 'random')
     batch_size = t_cfg.get('batch_size', 32)
+    if task == 'soh_point':
+        batch_size = t_cfg.get('soh_point_batch_size', batch_size)
     if spec.batch_size_cap:
         batch_size = min(batch_size, spec.batch_size_cap)
 

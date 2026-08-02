@@ -8,6 +8,7 @@ Output: (pred:(B,1), None)
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from src.models._masking import get_inputs
 
@@ -42,6 +43,9 @@ class iTransformer(nn.Module):
         B, S, C, L = x.shape
         # pool S → fixed length so var_proj sees a fixed input dim
         xc = x.permute(0, 2, 3, 1).reshape(B * C, L, S)  # (B*C, L, S)
+        if S > 2048:
+            stride = S // 1024
+            xc = F.avg_pool1d(xc, kernel_size=stride, stride=stride)
         xc = self.pool_s(xc)                               # (B*C, L, _FIXED_S)
         x = xc.reshape(B, C, -1)                           # (B, C, _FIXED_S*L)
         h = self.var_proj(x)                  # (B, 3, d)
