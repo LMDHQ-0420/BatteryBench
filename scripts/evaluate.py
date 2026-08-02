@@ -27,6 +27,7 @@ sys.path.insert(0, ROOT)
 from src.config import load_config, get_pkl_dir, DOMAIN_CFG
 from src.splits import make_battery_splits
 from src.models.registry import get_spec, ALL_MODELS, ALL_TASKS
+from src.data.cycle_dataset import soh_point_collate_fn
 import src.evaluate.rul.evaluate       as eval_rul
 import src.evaluate.soh_point.evaluate as eval_soh_point
 import src.evaluate.soh_traj.evaluate  as eval_soh_traj
@@ -62,8 +63,8 @@ def _eval_dl(spec, cfg, task, model, test_ds, batch_size, device, scaler_path=No
     """跑一个 test 子集，返回 metrics dict。"""
     evaluate_fn = _get_evaluate_fn(task)
     eol_thr = cfg['data'].get('eol_threshold', cfg['data'].get('soh_threshold', 0.80))
-    loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=0)
-    if task == 'soh_traj':
+    loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=0,
+                        collate_fn=soh_point_collate_fn if task == 'soh_point' else None)
         return evaluate_fn(model, loader, device,
                            n_future=cfg['data'].get('n_future', 5000),
                            eol_threshold=eol_thr)

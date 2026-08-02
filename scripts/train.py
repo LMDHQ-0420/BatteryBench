@@ -33,6 +33,7 @@ sys.path.insert(0, ROOT)
 from src.config import load_config, get_pkl_dir, DOMAIN_CFG
 from src.splits import make_battery_splits
 from src.models.registry import get_spec, ALL_MODELS, ALL_TASKS
+from src.data.cycle_dataset import soh_point_collate_fn
 
 
 def _build_full_dataset(spec, cfg, dirs, exclude_pattern):
@@ -115,8 +116,10 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
         print(f'\n--- Split {si}/{len(all_splits)} | train={len(train_ds)} val={len(val_ds)} ---')
         if len(train_ds) == 0 or len(val_ds) == 0:
             print('  Skipping empty split.'); continue
-        train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,  num_workers=0)
-        val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False, num_workers=0)
+        train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,  num_workers=0,
+                                  collate_fn=soh_point_collate_fn if task == 'soh_point' else None)
+        val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False, num_workers=0,
+                                  collate_fn=soh_point_collate_fn if task == 'soh_point' else None)
         model     = spec.build_fn(cfg).to(device)
         save_path = os.path.join(model_save_dir, f'{label}.pt')
         spec.train_fn(model, train_loader, val_loader, cfg, save_path, device)

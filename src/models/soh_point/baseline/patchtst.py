@@ -13,12 +13,15 @@ import torch.nn as nn
 from src.models._masking import get_inputs
 
 
+_FIXED_PATCHES = 32  # head always sees this many patches regardless of actual S
+
+
 class PatchTST(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        S         = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
         L         = cfg.get('data', {}).get('charge_discharge_length', 300)
+        sp_max    = cfg.get('data', {}).get('sp_max_cycles', 5000)
         patch_len = m.get('patchtst_patch_len', 16)
         stride    = m.get('patchtst_stride', 8)
         d_model   = m.get('patchtst_d_model', 64)
@@ -30,12 +33,13 @@ class PatchTST(nn.Module):
         self.L          = L
         self.patch_len  = patch_len
         self.stride     = stride
-        n_patches       = max(1, (S - patch_len) // stride + 1)
-        self.n_patches  = n_patches
 
-        # channel-independent patch embedding：同一套权重独立处理每个通道
+        # max possible patches for the largest expected S
+        max_patches = max(1, (sp_max - patch_len) // stride + 1)
+
         self.patch_proj = nn.Linear(patch_len * L, d_model)
-        self.pos_emb    = nn.Parameter(torch.zeros(1, n_patches, d_model))
+        # large buffer sliced to actual P at runtime
+        self.pos_emb    = nn.Parameter(torch.zeros(1, max_patches, d_model))
         nn.init.trunc_normal_(self.pos_emb, std=0.02)
 
         enc_layer = nn.TransformerEncoderLayer(
@@ -44,9 +48,11 @@ class PatchTST(nn.Module):
             dropout=dropout, batch_first=True,
         )
         self.encoder = nn.TransformerEncoder(enc_layer, num_layers=n_layers)
+        # pool P → _FIXED_PATCHES so head Linear is independent of actual P
+        self.patch_pool = nn.AdaptiveAvgPool1d(_FIXED_PATCHES)
         self.head = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(self.n_channels * n_patches * d_model, d_model), nn.ReLU(), nn.Dropout(dropout),
+            nn.Linear(self.n_channels * _FIXED_PATCHES * d_model, d_model), nn.ReLU(), nn.Dropout(dropout),
             nn.Linear(d_model, 1),
         )
 
@@ -82,6 +88,8 @@ class PatchTST(nn.Module):
             kpm[full_mask_rows] = False
 
         h = self.encoder(h, src_key_padding_mask=kpm)            # (B*C, P, d_model)
-        h = h.reshape(B, C, P, -1)                                # (B, C, P, d_model)
+        # pool P → _FIXED_PATCHES so head Linear is S-independent
+        h = self.patch_pool(h.permute(0, 2, 1)).permute(0, 2, 1)  # (B*C, _FIXED_PATCHES, d_model)
+        h = h.reshape(B, C, _FIXED_PATCHES, -1)                   # (B, C, _FIXED_PATCHES, d_model)
         pred = self.head(h)                                      # (B, 1)
         return pred, None

@@ -15,6 +15,11 @@ data/cycle_dataset.py — 多样本 + attention mask 数据集（对齐 BatteryL
     soh_traj  → traj (归一化完整轨迹) + trajectory_mask[useable:traj_len]
 
 电池级 split：同一电池的所有样本同属 train/val/test，防数据泄露。
+
+SOHPointDataset full_cycle_mode：
+    当 full_cycle_mode=True 时，curves/Q 缓存整条寿命（不截断到 early_cycle），
+    useable 范围扩展到 full_len，每圈都是一个独立样本。
+    批次内用 soh_point_collate_fn 做动态 padding（pad 到该批最大 useable 长度）。
 """
 
 import os
@@ -39,6 +44,12 @@ SOH_TRAJ_LEN = 5000  # soh_traj 固定输出长度，超出实际寿命部分为
 def _cache_key(pkl_path: str, early_cycle: int, L: int, n_grid: int) -> str:
     stem = Path(pkl_path).stem
     return f'{stem}_cyc_e{early_cycle}_L{L}_g{n_grid}'
+
+
+def _cache_key_full(pkl_path: str, L: int, n_grid: int) -> str:
+    """SOHPoint full_cycle_mode 专用缓存 key（不截断到 early_cycle）。"""
+    stem = Path(pkl_path).stem
+    return f'{stem}_sp_full_L{L}_g{n_grid}'
 
 
 def _load_battery(pkl_path: str, early_cycle: int, charge_discharge_length: int,
@@ -129,6 +140,87 @@ def _load_battery(pkl_path: str, early_cycle: int, charge_discharge_length: int,
     }
 
 
+def _load_battery_full(pkl_path: str, charge_discharge_length: int,
+                       soh_threshold: float, n_grid: int = 200) -> Optional[dict]:
+    """
+    SOHPoint full_cycle_mode 专用：curves/Q 覆盖整条寿命（不截断到 early_cycle=100）。
+    dict 字段与 _load_battery 相同，但 curves (full_len, 3, L)、Q (full_len, n_grid)，
+    valid_cycles == full_len。
+    """
+    cache_dir = Path(CACHE_DIR)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    key = _cache_key_full(pkl_path, charge_discharge_length, n_grid)
+    cache_file = cache_dir / f'{key}.npz'
+
+    if cache_file.exists():
+        try:
+            d = np.load(str(cache_file), allow_pickle=True)
+            eol = d['eol'].item()
+            return {
+                'curves':           d['curves'],
+                'Q':                d['Q'],
+                'valid_cycles':     int(d['valid_cycles']),
+                'soh_raw':          d['soh_raw'],
+                'eol':              (int(eol) if eol is not None else None),
+                'full_len':         int(d['full_len']),
+                'cathode_material': str(d['cathode_material']),
+                'dataset_name':     str(d['dataset_name']),
+                'cell_id':          str(d['cell_id']),
+            }
+        except Exception:
+            cache_file.unlink(missing_ok=True)
+
+    try:
+        cell = load_pkl(pkl_path)
+    except Exception:
+        return None
+
+    cycle_data = cell.get('cycle_data', [])
+    if len(cycle_data) == 0:
+        return None
+
+    soh_raw = compute_soh_series(cell).astype(np.float32)
+    full_len = len(soh_raw)
+    eol = compute_eol(soh_raw, threshold=soh_threshold, fallback_total=False)
+
+    # 整条寿命的曲线矩阵
+    curves, valid_cycles = build_cycle_curve_tensor(
+        cell, early_cycle=full_len,
+        charge_discharge_length=charge_discharge_length, num_var=3,
+    )
+
+    Q = build_q_matrix(cell, n_cycles=full_len, n_grid=n_grid)
+    if Q is None:
+        Q = np.zeros((full_len, n_grid), dtype=np.float32)
+    Q = Q.astype(np.float32)
+
+    cell_id      = cell.get('cell_id', Path(pkl_path).stem)
+    cathode      = str(cell.get('cathode_material', 'unknown'))
+    dataset_name = Path(pkl_path).parent.name
+
+    try:
+        np.savez_compressed(
+            str(cache_file),
+            curves=curves.astype(np.float32),
+            Q=Q,
+            valid_cycles=np.array(valid_cycles),
+            soh_raw=soh_raw,
+            eol=np.array(eol, dtype=object),
+            full_len=np.array(full_len),
+            cathode_material=np.array(cathode),
+            dataset_name=np.array(dataset_name),
+            cell_id=np.array(cell_id),
+        )
+    except Exception:
+        pass
+
+    return {
+        'curves': curves.astype(np.float32), 'Q': Q, 'valid_cycles': valid_cycles,
+        'soh_raw': soh_raw, 'eol': eol, 'full_len': full_len,
+        'cathode_material': cathode, 'dataset_name': dataset_name, 'cell_id': cell_id,
+    }
+
+
 class _CycleDatasetBase(Dataset):
     """
     多样本 + mask 数据集基类。子类实现 _make_label(bat, useable)。
@@ -142,6 +234,7 @@ class _CycleDatasetBase(Dataset):
     """
 
     REQUIRES_EOL = False
+    FULL_CYCLE_MODE = False  # SOHPointDataset 覆盖为 True
 
     def __init__(
         self,
@@ -180,9 +273,13 @@ class _CycleDatasetBase(Dataset):
         self._batteries: List[dict] = []
         desc = f'Loading batteries ({self.__class__.__name__})'
         for pkl_path in tqdm(pkl_files, desc=desc, leave=False):
-            bat = _load_battery(str(pkl_path), early_cycle,
-                                charge_discharge_length, self.soh_threshold,
-                                n_grid=n_grid)
+            if self.FULL_CYCLE_MODE:
+                bat = _load_battery_full(str(pkl_path), charge_discharge_length,
+                                         self.soh_threshold, n_grid=n_grid)
+            else:
+                bat = _load_battery(str(pkl_path), early_cycle,
+                                    charge_discharge_length, self.soh_threshold,
+                                    n_grid=n_grid)
             if bat is None:
                 continue
             if self.REQUIRES_EOL and (bat['eol'] is None or bat['eol'] <= early_cycle):
@@ -201,10 +298,14 @@ class _CycleDatasetBase(Dataset):
             if bidx >= len(self._batteries):
                 continue
             bat = self._batteries[bidx]
-            # useable 从 seq_len 到 early_cycle，但不超过有效圈数、不到 eol
-            # （eol=None 表示未退化，此时不设上限，退化终点用 valid_cycles 代替）
-            eol_bound = bat['valid_cycles'] if bat['eol'] is None else bat['eol'] - 1
-            upper = min(self.early_cycle, bat['valid_cycles'], eol_bound)
+            if self.FULL_CYCLE_MODE:
+                # 整条寿命：useable 从 seq_len 到 full_len（每圈都是样本）
+                upper = bat['valid_cycles']
+            else:
+                # useable 从 seq_len 到 early_cycle，但不超过有效圈数、不到 eol
+                # （eol=None 表示未退化，此时不设上限，退化终点用 valid_cycles 代替）
+                eol_bound = bat['valid_cycles'] if bat['eol'] is None else bat['eol'] - 1
+                upper = min(self.early_cycle, bat['valid_cycles'], eol_bound)
             for useable in range(self.seq_len, upper + 1):
                 self._samples.append((bidx, useable))
 
@@ -212,14 +313,23 @@ class _CycleDatasetBase(Dataset):
         return len(self._samples)
 
     def _base_item(self, bidx: int, useable: int):
-        """构造 cycle_curve_data (early,3,L)、Q (early,N)、curve_attn_mask (early,)，未观测圈置零。"""
+        """构造 cycle_curve_data、Q、curve_attn_mask，未观测圈置零。
+        full_cycle_mode 时输出长度 = useable（不补 pad，由 collate_fn 对齐）。
+        普通模式输出长度 = early_cycle（固定）。
+        """
         bat = self._batteries[bidx]
-        curves = bat['curves'].copy()                       # (early, 3, L)
-        Q = bat['Q'].copy()                                 # (early, N)
-        mask = np.zeros(self.early_cycle, dtype=np.float32)
-        mask[:useable] = 1.0
-        curves[useable:] = 0.0                              # 未观测圈置零
-        Q[useable:] = 0.0
+        if self.FULL_CYCLE_MODE:
+            # 只取到 useable 圈，collate_fn 负责批次内 pad
+            curves = bat['curves'][:useable].copy()   # (useable, 3, L)
+            Q = bat['Q'][:useable].copy()             # (useable, n_grid)
+            mask = np.ones(useable, dtype=np.float32)
+        else:
+            curves = bat['curves'].copy()             # (early_cycle, 3, L)
+            Q = bat['Q'].copy()                       # (early_cycle, n_grid)
+            mask = np.zeros(self.early_cycle, dtype=np.float32)
+            mask[:useable] = 1.0
+            curves[useable:] = 0.0
+            Q[useable:] = 0.0
         return bat, curves, Q, mask
 
     def __getitem__(self, idx: int) -> dict:
@@ -293,13 +403,60 @@ class RULDataset(_CycleDatasetBase):
 class SOHPointDataset(_CycleDatasetBase):
     """
     SOH 单点估计：标签 = 最后观测圈的原始 SOH（soh_raw[useable-1]）。
+    FULL_CYCLE_MODE=True：覆盖整条寿命，每圈出一个样本，
+    批次内由 soh_point_collate_fn 做动态 padding。
     """
+
+    FULL_CYCLE_MODE = True
 
     def _make_label(self, bat: dict, useable: int) -> dict:
         soh_raw = bat['soh_raw']
         idx = min(useable - 1, len(soh_raw) - 1)
         soh = float(np.clip(soh_raw[idx], 0.0, 1.0))
         return {'soh_point': torch.FloatTensor([soh])}
+
+
+def soh_point_collate_fn(samples: list) -> dict:
+    """
+    SOHPointDataset 专用 collate：批次内按最大 useable 长度动态 pad。
+    cycle_curve_data: (B, S_max, 3, L)
+    Q:               (B, S_max, n_grid)
+    curve_attn_mask: (B, S_max)   1=有效, 0=pad
+    其余字段（soh_point 等）直接 stack。
+    """
+    S_max = max(s['cycle_curve_data'].shape[0] for s in samples)
+
+    curves_list, Q_list, mask_list = [], [], []
+    rest_keys = [k for k in samples[0] if k not in ('cycle_curve_data', 'Q', 'curve_attn_mask')]
+    rest = {k: [] for k in rest_keys}
+
+    for s in samples:
+        c = s['cycle_curve_data']   # (s_i, 3, L)
+        q = s['Q']                  # (s_i, n_grid)
+        m = s['curve_attn_mask']    # (s_i,)
+        s_i = c.shape[0]
+        pad = S_max - s_i
+        if pad > 0:
+            c = torch.cat([c, torch.zeros(pad, *c.shape[1:], dtype=c.dtype)], dim=0)
+            q = torch.cat([q, torch.zeros(pad, *q.shape[1:], dtype=q.dtype)], dim=0)
+            m = torch.cat([m, torch.zeros(pad, dtype=m.dtype)], dim=0)
+        curves_list.append(c)
+        Q_list.append(q)
+        mask_list.append(m)
+        for k in rest_keys:
+            rest[k].append(s[k])
+
+    batch = {
+        'cycle_curve_data': torch.stack(curves_list),   # (B, S_max, 3, L)
+        'Q':                torch.stack(Q_list),         # (B, S_max, n_grid)
+        'curve_attn_mask':  torch.stack(mask_list),      # (B, S_max)
+    }
+    for k, vals in rest.items():
+        try:
+            batch[k] = torch.stack(vals)
+        except Exception:
+            batch[k] = vals  # cell_id 等字符串字段
+    return batch
 
 
 class SOHTrajDataset(_CycleDatasetBase):

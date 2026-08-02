@@ -16,14 +16,16 @@ class iTransformer(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        S        = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
         L        = cfg.get('data', {}).get('charge_discharge_length', 300)
+        sp_max   = cfg.get('data', {}).get('sp_max_cycles', 5000)
         d_model  = m.get('itransformer_d_model', 64)
         n_heads  = m.get('itransformer_n_heads', 4)
         n_layers = m.get('itransformer_n_layers', 2)
         dropout  = m.get('dropout', 0.1)
 
-        self.var_proj = nn.Linear(S * L, d_model)
+        _FIXED_S = 128
+        self.pool_s  = nn.AdaptiveAvgPool1d(_FIXED_S)
+        self.var_proj = nn.Linear(_FIXED_S * L, d_model)
         enc_layer = nn.TransformerEncoderLayer(
             d_model=d_model, nhead=n_heads,
             dim_feedforward=d_model * 4,
@@ -38,7 +40,10 @@ class iTransformer(nn.Module):
     def forward(self, batch: dict):
         x, _ = get_inputs(batch)              # (B, S, 3, L)  未观测圈已置零
         B, S, C, L = x.shape
-        x = x.permute(0, 2, 1, 3).reshape(B, C, S * L)  # (B, 3, S*L)
+        # pool S → fixed length so var_proj sees a fixed input dim
+        xc = x.permute(0, 2, 3, 1).reshape(B * C, L, S)  # (B*C, L, S)
+        xc = self.pool_s(xc)                               # (B*C, L, _FIXED_S)
+        x = xc.reshape(B, C, -1)                           # (B, C, _FIXED_S*L)
         h = self.var_proj(x)                  # (B, 3, d)
         h = self.encoder(h)
         pred = self.head(h.mean(dim=1))

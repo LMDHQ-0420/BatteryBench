@@ -114,8 +114,8 @@ class Autoformer(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        S        = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
         L        = cfg.get('data', {}).get('charge_discharge_length', 300)
+        sp_max   = cfg.get('data', {}).get('sp_max_cycles', 5000)
         d_model  = m.get('autoformer_d_model', 64)
         n_heads  = m.get('autoformer_n_heads', 4)
         n_layers = m.get('autoformer_n_layers', 2)
@@ -123,8 +123,8 @@ class Autoformer(nn.Module):
         dropout  = m.get('dropout', 0.1)
 
         self.input_proj = nn.Linear(3 * L, d_model)
-        pe = torch.zeros(S, d_model)
-        pos = torch.arange(S).unsqueeze(1).float()
+        pe = torch.zeros(sp_max, d_model)
+        pos = torch.arange(sp_max).unsqueeze(1).float()
         div = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
         pe[:, 0::2] = torch.sin(pos * div)
         pe[:, 1::2] = torch.cos(pos * div)

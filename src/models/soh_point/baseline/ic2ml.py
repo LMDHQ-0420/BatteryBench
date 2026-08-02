@@ -58,7 +58,7 @@ class IC2ML(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        n_cycles = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
+        sp_max   = cfg.get('data', {}).get('sp_max_cycles', 5000)
         n_grid   = m.get('n_grid', 200)
         d_model  = m.get('ic2ml_d_model', 64)
         n_heads  = m.get('ic2ml_n_heads', 4)
@@ -72,8 +72,8 @@ class IC2ML(nn.Module):
             nn.Linear(d_model, d_model),
         )
 
-        pe = torch.zeros(n_cycles, d_model)
-        pos = torch.arange(n_cycles).unsqueeze(1).float()
+        pe = torch.zeros(sp_max, d_model)
+        pos = torch.arange(sp_max).unsqueeze(1).float()
         div = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
         pe[:, 0::2] = torch.sin(pos * div)
         pe[:, 1::2] = torch.cos(pos * div)

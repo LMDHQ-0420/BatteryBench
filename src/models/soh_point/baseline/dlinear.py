@@ -31,28 +31,33 @@ class _MovingAvg(nn.Module):
         return F.avg_pool1d(x, kernel_size=self.kernel_size, stride=1)
 
 
+_FIXED_S = 128  # AdaptiveAvgPool1d target for variable-length S
+
+
 class DLinear(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        S = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
-        kernel = m.get('dlinear_kernel', 25)
+        kernel   = m.get('dlinear_kernel', 25)
         pred_len = 1
+        S_fixed  = _FIXED_S
 
+        self.pool      = nn.AdaptiveAvgPool1d(S_fixed)
         self.decompose = _MovingAvg(kernel)
-        self.w_trend = nn.Linear(S, pred_len)
-        self.w_seasonal = nn.Linear(S, pred_len)
+        self.w_trend    = nn.Linear(S_fixed, pred_len)
+        self.w_seasonal = nn.Linear(S_fixed, pred_len)
         with torch.no_grad():
-            self.w_trend.weight.fill_(1.0 / S)
-            self.w_seasonal.weight.fill_(1.0 / S)
+            self.w_trend.weight.fill_(1.0 / S_fixed)
+            self.w_seasonal.weight.fill_(1.0 / S_fixed)
             self.w_trend.bias.zero_()
             self.w_seasonal.bias.zero_()
 
     def forward(self, batch: dict):
         x, _ = get_inputs(batch)              # (B, S, 3, L)
         x = flatten_cycles(x)                 # (B, S, F=3*L)
-        xT = x.permute(0, 2, 1)               # (B, F, S) — F 个 channel 共享同一组权重
-        trend = self.decompose(xT)            # (B, F, S)
+        xT = x.permute(0, 2, 1)               # (B, F, S)
+        xT = self.pool(xT)                    # (B, F, _FIXED_S)
+        trend = self.decompose(xT)            # (B, F, _FIXED_S)
         seasonal = xT - trend
         out = self.w_trend(trend) + self.w_seasonal(seasonal)  # (B, F, pred_len)
         return out.mean(dim=1), None          # 跨 channel 平均 → (B, pred_len)
