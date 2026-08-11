@@ -1,7 +1,7 @@
 """
 train/soh_point/train_severson.py — Severson ElasticNet for SOH point estimation.
-特征: ΔQ(V) = Q[最后观测圈] - Q[第10圈] 的 variance/min/mean。
-标签: 最后观测圈的 SOH。
+特征: 当前观测圈 Q(V) 曲线本身的 variance/min/mean（单圈输入，无法再取跨圈 ΔQ）。
+标签: 当前观测圈的 SOH。
 """
 
 import os
@@ -11,18 +11,16 @@ from sklearn.linear_model import ElasticNetCV
 from sklearn.preprocessing import StandardScaler
 
 
-def _delta_q_feature(Q: np.ndarray, useable: int) -> list:
-    late = Q[useable - 1]
-    early = Q[min(9, useable - 1)]
-    dq = late - early
-    return [float(np.var(dq)), float(np.min(dq)), float(np.mean(dq))]
+def _q_feature(Q: np.ndarray) -> list:
+    q = Q[0]  # (1, n_grid) -> (n_grid,)，当前这一圈的 Q(V) 曲线
+    return [float(np.var(q)), float(np.min(q)), float(np.mean(q))]
 
 
 def _extract_features(dataset) -> np.ndarray:
     feats = []
     for i in range(len(dataset)):
         s = dataset[i]
-        feats.append(_delta_q_feature(s['Q'].numpy(), int(s['useable_cycle'])))
+        feats.append(_q_feature(s['Q'].numpy()))
     return np.array(feats, dtype=float)
 
 

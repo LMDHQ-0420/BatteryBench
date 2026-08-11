@@ -2,9 +2,11 @@
 soh_point/ic2ml.py — IC²ML for SOH single-point estimation.
 Reference: Huang et al., Journal of Power Sources 666 (2026) 239148
 
-Input: batch['Q']  (B, S, N) — 未观测圈已由 dataset 置零
-       batch['curve_attn_mask'] (B, S)
-Output: (pred:(B,1), None)  — 预测最后观测圈的 SOH
+Input: batch['Q'] (B, S=1, N) — S 恒为 1（每样本仅当前观测圈）。
+       真实时序轴是 IC(V) 曲线的电压网格 N（n_grid），融合两条路径：
+       1) token 化 + self-attention：沿 N 轴切 token，做全局自注意力，捕捉曲线整体形状；
+       2) 1D Inception 多尺度卷积：沿 N 轴做局部多尺度卷积，捕捉曲线局部峰谷特征。
+Output: (pred:(B,1), None)  — 预测当前观测圈的 SOH
 """
 
 import math
@@ -12,18 +14,22 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from src.models._masking import get_q_seq
 
-class InceptionBlock2D(nn.Module):
+
+class InceptionBlock1D(nn.Module):
+    """沿 n_grid 轴的多尺度 1D 卷积（局部感受野捕捉 IC 曲线峰谷特征）。"""
+
     def __init__(self, in_ch: int, out_ch: int):
         super().__init__()
         branch_ch = out_ch // 3
         extra = out_ch - branch_ch * 3
-        self.b1 = nn.Conv2d(in_ch, branch_ch, kernel_size=(1, 3), padding=(0, 1))
-        self.b2 = nn.Conv2d(in_ch, branch_ch, kernel_size=(3, 1), padding=(1, 0))
-        self.b3 = nn.Conv2d(in_ch, branch_ch + extra, kernel_size=(3, 3), padding=(1, 1))
-        self.bn = nn.BatchNorm2d(out_ch)
+        self.b1 = nn.Conv1d(in_ch, branch_ch, kernel_size=3, padding=1)
+        self.b2 = nn.Conv1d(in_ch, branch_ch, kernel_size=7, padding=3)
+        self.b3 = nn.Conv1d(in_ch, branch_ch + extra, kernel_size=15, padding=7)
+        self.bn = nn.BatchNorm1d(out_ch)
 
-    def forward(self, x):
+    def forward(self, x):          # x: (B, C_in, N)
         out = torch.cat([self.b1(x), self.b2(x), self.b3(x)], dim=1)
         return F.relu(self.bn(out))
 
@@ -58,36 +64,27 @@ class IC2ML(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        sp_max   = cfg.get('data', {}).get('sp_max_cycles', 5000)
         n_grid   = m.get('n_grid', 200)
         d_model  = m.get('ic2ml_d_model', 64)
         n_heads  = m.get('ic2ml_n_heads', 4)
         dropout  = m.get('dropout', 0.1)
 
-        self.stride = 20
-        pts = n_grid // self.stride
+        self.stride = 5
+        n_tokens = max(1, n_grid // self.stride)
 
-        self.cycle_fcn = nn.Sequential(
-            nn.Linear(pts, d_model), nn.LayerNorm(d_model), nn.ReLU(),
-            nn.Linear(d_model, d_model),
-        )
-
-        pe = torch.zeros(sp_max, d_model)
-        pos = torch.arange(sp_max).unsqueeze(1).float()
-        div = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-        pe[:, 0::2] = torch.sin(pos * div)
-        pe[:, 1::2] = torch.cos(pos * div)
-        self.register_buffer('pe', pe.unsqueeze(0))
+        self.token_proj = nn.Linear(self.stride, d_model)
+        self.pos_emb = nn.Parameter(torch.zeros(1, n_tokens, d_model))
+        nn.init.trunc_normal_(self.pos_emb, std=0.02)
 
         enc_layer = nn.TransformerEncoderLayer(
             d_model=d_model, nhead=n_heads, dim_feedforward=d_model * 4,
             dropout=dropout, batch_first=True,
         )
-        self.inter_attn = nn.TransformerEncoder(enc_layer, num_layers=1)
+        self.token_attn = nn.TransformerEncoder(enc_layer, num_layers=1)
 
-        self.inception = InceptionBlock2D(in_ch=1, out_ch=d_model)
-        self.pool2d = nn.AdaptiveAvgPool2d((1, 1))
-        self.proj2d = nn.Linear(d_model, d_model)
+        self.inception = InceptionBlock1D(in_ch=1, out_ch=d_model)
+        self.pool1d = nn.AdaptiveAvgPool1d(1)
+        self.proj_local = nn.Linear(d_model, d_model)
 
         self.cross_attn = CrossAttention(d_model, n_heads)
         self.norm = nn.LayerNorm(d_model)
@@ -98,35 +95,23 @@ class IC2ML(nn.Module):
         )
 
     def forward(self, batch):
-        Q = batch['Q']                          # (B, S, N)
-        B, S, N = Q.shape
-        mask = batch.get('curve_attn_mask')
-        if mask is None:
-            mask = torch.ones(B, S, device=Q.device, dtype=Q.dtype)
+        q = get_q_seq(batch).squeeze(-1)        # (B, N) — n_grid 为真实时序轴
+        B, N = q.shape
 
-        # coarse pool when S is large — inter-cycle attention is O(S²)
-        if S > 512:
-            stride = max(1, S // 512)
-            Q    = F.avg_pool1d(Q.permute(0,2,1), kernel_size=stride, stride=stride).permute(0,2,1)
-            mask = F.avg_pool1d(mask.unsqueeze(1).float(), kernel_size=stride, stride=stride).squeeze(1)
-            mask = (mask > 0).float()
+        n_tokens = N // self.stride
+        q_trim = q[:, :n_tokens * self.stride]
+        tokens = q_trim.reshape(B, n_tokens, self.stride)   # (B, n_tokens, stride)
+        h_global = self.token_proj(tokens) + self.pos_emb[:, :n_tokens, :]
+        h_global = self.token_attn(h_global)                 # (B, n_tokens, d)
+        feat_global = h_global.mean(dim=1)                    # (B, d)
 
-        kpm = mask <= 0
+        q_1d = q.unsqueeze(1)                    # (B, 1, N)
+        feat_local = self.inception(q_1d)         # (B, d, N)
+        feat_local = self.pool1d(feat_local).flatten(1)  # (B, d)
+        feat_local = self.proj_local(feat_local)
 
-        q1d = Q[:, :, ::self.stride]
-        h1d = self.cycle_fcn(q1d)
-        h1d = h1d + self.pe[:, :Q.shape[1], :]
-        h1d = self.inter_attn(h1d, src_key_padding_mask=kpm)
-        mm = mask.unsqueeze(-1)
-        feat1d = (h1d * mm).sum(dim=1) / mm.sum(dim=1).clamp(min=1)
+        fused = self.cross_attn(feat_local, feat_global)
+        fused = self.norm(fused + feat_local)
 
-        q2d = batch['Q'].unsqueeze(1)          # use original Q for 2D inception
-        feat2d = self.inception(q2d)
-        feat2d = self.pool2d(feat2d).flatten(1)
-        feat2d = self.proj2d(feat2d)
-
-        fused = self.cross_attn(feat2d, feat1d)
-        fused = self.norm(fused + feat2d)
-
-        pred = self.head(fused)                 # (B, 1)
+        pred = self.head(fused)                   # (B, 1)
         return pred, None

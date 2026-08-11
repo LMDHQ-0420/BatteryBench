@@ -71,19 +71,16 @@ class BatLiNet(nn.Module):
         if B < 2:
             return loss_intra
 
+        # 直接随机采样非对角 (i,j) 对，避免物化全部 B*(B-1) 组合的纯 Python
+        # 双重循环（该循环每 batch 都会执行，是 batlinet 训练严重慢于其它模型
+        # 的根因，而非 GPU/CPU 资源争抢）。i==j 时把 j 偏移 1（mod B）即可保证
+        # i != j，且不改变采样分布的均匀性。
         max_pairs = 64
-        all_i, all_j = [], []
-        for i in range(B):
-            for j in range(B):
-                if i != j:
-                    all_i.append(i); all_j.append(j)
-        n_pairs = len(all_i)
-        if n_pairs > max_pairs:
-            idx = torch.randperm(n_pairs)[:max_pairs]
-            all_i = [all_i[k] for k in idx.tolist()]
-            all_j = [all_j[k] for k in idx.tolist()]
-        idx_i = torch.tensor(all_i, device=device)
-        idx_j = torch.tensor(all_j, device=device)
+        n_pairs = min(max_pairs, B * (B - 1))
+        idx_i = torch.randint(0, B, (n_pairs,), device=device)
+        idx_j = torch.randint(0, B, (n_pairs,), device=device)
+        collide = idx_i == idx_j
+        idx_j = torch.where(collide, (idx_j + 1) % B, idx_j)
 
         dQ = Q[idx_i] - Q[idx_j]
         dy = y[idx_i] - y[idx_j]
@@ -118,9 +115,23 @@ class BatLiNet(nn.Module):
             idx = torch.randperm(R, device=device)[:self.n_ref]
             Q_ref = Q_ref[idx]; y_ref = y_ref[idx]; R = self.n_ref
 
+        # cap S before the (B,R) broadcast below — full_cycle_mode sequences can
+        # reach ~20000 cycles, which would blow up dQ=(B*R, S, N) memory
+        s_cap = 2048
+        Q_diff = Q[:, :s_cap] if Q.shape[1] > s_cap else Q
+
+        # align S dimension — full_cycle_mode batches may have different S from ref pool
+        S_q, S_r = Q_diff.shape[1], Q_ref.shape[1]
+        if S_q != S_r:
+            S_max = max(S_q, S_r)
+            if S_q < S_max:
+                Q_diff = torch.cat([Q_diff, Q_diff.new_zeros(B, S_max - S_q, Q_diff.shape[2])], dim=1)
+            else:
+                Q_ref = torch.cat([Q_ref, Q_ref.new_zeros(R, S_max - S_r, Q_ref.shape[2])], dim=1)
+
         # 所有 (b_idx, ref_idx) 组合一次性 batch 过 CNN，等价于逐样本 for 循环
         # （eval 模式下 BatchNorm 用 running stats，与 batch 组成无关，结果一致）
-        dQ = (Q.unsqueeze(1) - Q_ref.unsqueeze(0)).reshape(B * R, *Q.shape[1:])  # (B*R, S, N)
+        dQ = (Q_diff.unsqueeze(1) - Q_ref.unsqueeze(0)).reshape(B * R, *Q_diff.shape[1:])  # (B*R, S, N)
         pred_diff = self._inter_pred(dQ).view(B, R, 1)
         pred_inter = (pred_diff + y_ref.unsqueeze(0)).mean(dim=1)  # 论文 Eq.10: mean
         pred = self.alpha * pred_intra + (1 - self.alpha) * pred_inter

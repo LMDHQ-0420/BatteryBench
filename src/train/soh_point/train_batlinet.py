@@ -30,23 +30,35 @@ def train_one_epoch(model, loader, optimizer, device):
     return total_loss / max(len(loader), 1)
 
 
-def _build_reference(loader, device):
-    """遍历一次 train_loader，拼出参考池张量。
-    full_cycle_mode 下各 batch 的 S_max 不同，先收集后统一 pad 再 cat。"""
+def _build_reference(loader, device, n_ref=64, s_cap=2048):
+    """遍历一次 train_loader，累积一个不超过 n_ref 的参考池（reservoir sampling）。
+    full_cycle_mode 下样本数巨大（每圈一个样本），不能把整个训练集拼进内存，
+    只保留至多 n_ref 条参考样本；每条样本的 S 也截断到 s_cap，避免个别超长
+    序列（如 22000 圈）导致 forward 时 dQ=(B*R,S,N) 显存爆炸。"""
     ref_Qs, ref_ys = [], []
+    seen = 0
     with torch.no_grad():
         for batch in loader:
-            ref_Qs.append(batch['Q'].cpu())   # (b, S_i, N)
-            ref_ys.append(batch['soh_point'].cpu())
-    # 统一 pad 到全局 S_max
-    S_max = max(q.shape[1] for q in ref_Qs)
+            Q = batch['Q'].cpu()               # (b, S_i, N)
+            y = batch['soh_point'].cpu()
+            if Q.shape[1] > s_cap:
+                Q = Q[:, :s_cap]
+            for i in range(Q.shape[0]):
+                seen += 1
+                if len(ref_Qs) < n_ref:
+                    ref_Qs.append(Q[i]); ref_ys.append(y[i])
+                else:
+                    j = np.random.randint(0, seen)
+                    if j < n_ref:
+                        ref_Qs[j] = Q[i]; ref_ys[j] = y[i]
+    S_max = max(q.shape[0] for q in ref_Qs)
     padded = []
     for q in ref_Qs:
-        pad = S_max - q.shape[1]
+        pad = S_max - q.shape[0]
         if pad > 0:
-            q = torch.cat([q, torch.zeros(q.shape[0], pad, q.shape[2])], dim=1)
+            q = torch.cat([q, torch.zeros(pad, q.shape[1])], dim=0)
         padded.append(q)
-    return torch.cat(padded, dim=0).to(device), torch.cat(ref_ys, dim=0).to(device)
+    return torch.stack(padded, dim=0).to(device), torch.stack(ref_ys, dim=0).to(device)
 
 
 def validate(model, loader, device, ref_Q=None, ref_y=None):
@@ -83,7 +95,7 @@ def train(model, train_loader, val_loader, config, save_path, device='cuda'):
     no_improve = 0
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-    ref_Q, ref_y = _build_reference(train_loader, device)
+    ref_Q, ref_y = _build_reference(train_loader, device, n_ref=model.n_ref)
 
     for epoch in range(1, epochs + 1):
         train_loss = train_one_epoch(model, train_loader, optimizer, device)

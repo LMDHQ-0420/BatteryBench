@@ -1,16 +1,16 @@
 """
 soh_point/itransformer.py — iTransformer for SOH single-point estimation.
 Reference: Liu et al., ICLR 2024.
-Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
-        未观测圈已由 dataset 置零。倒置为每通道一个 token (B, 3, S*L)。
+Input:  batch['cycle_curve_data'] (B, S=1, 3, L) — S 恒为 1（每样本仅当前观测圈）。
+        倒置为每通道一个 token：每个 variate token 由该通道整条长度 L 的圈内曲线
+        embedding 而来，在 3 个 variate 间做自注意力（iTransformer 的核心设计）。
 Output: (pred:(B,1), None)
 """
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from src.models._masking import get_inputs
+from src.models._masking import get_curve_seq
 
 
 class iTransformer(nn.Module):
@@ -18,15 +18,12 @@ class iTransformer(nn.Module):
         super().__init__()
         m = cfg.get('model', {})
         L        = cfg.get('data', {}).get('charge_discharge_length', 300)
-        sp_max   = cfg.get('data', {}).get('sp_max_cycles', 5000)
         d_model  = m.get('itransformer_d_model', 64)
         n_heads  = m.get('itransformer_n_heads', 4)
         n_layers = m.get('itransformer_n_layers', 2)
         dropout  = m.get('dropout', 0.1)
 
-        _FIXED_S = 128
-        self.pool_s  = nn.AdaptiveAvgPool1d(_FIXED_S)
-        self.var_proj = nn.Linear(_FIXED_S * L, d_model)
+        self.var_proj = nn.Linear(L, d_model)
         enc_layer = nn.TransformerEncoderLayer(
             d_model=d_model, nhead=n_heads,
             dim_feedforward=d_model * 4,
@@ -39,16 +36,9 @@ class iTransformer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x, _ = get_inputs(batch)              # (B, S, 3, L)  未观测圈已置零
-        B, S, C, L = x.shape
-        # pool S → fixed length so var_proj sees a fixed input dim
-        xc = x.permute(0, 2, 3, 1).reshape(B * C, L, S)  # (B*C, L, S)
-        if S > 2048:
-            stride = S // 1024
-            xc = F.avg_pool1d(xc, kernel_size=stride, stride=stride)
-        xc = self.pool_s(xc)                               # (B*C, L, _FIXED_S)
-        x = xc.reshape(B, C, -1)                           # (B, C, _FIXED_S*L)
-        h = self.var_proj(x)                  # (B, 3, d)
+        x = get_curve_seq(batch)              # (B, L, 3)
+        xc = x.permute(0, 2, 1)               # (B, C=3, L) — 每通道一条长度 L 的曲线
+        h = self.var_proj(xc)                 # (B, 3, d) — 每 variate 一个 token
         h = self.encoder(h)
         pred = self.head(h.mean(dim=1))
         return pred, None

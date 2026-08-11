@@ -299,7 +299,9 @@ class _CycleDatasetBase(Dataset):
                 continue
             bat = self._batteries[bidx]
             if self.FULL_CYCLE_MODE:
-                # 整条寿命：useable 从 seq_len 到 full_len（每圈都是样本）
+                # 整条寿命：useable 从 seq_len 到 full_len（每圈都是样本）。
+                # soh_point 每个样本只取当前这一圈自身（见 _base_item），
+                # 数据量与圈数呈 O(N) 而非 O(N^2)，无需对超长电池稀疏采样。
                 upper = bat['valid_cycles']
             else:
                 # useable 从 seq_len 到 early_cycle，但不超过有效圈数、不到 eol
@@ -319,10 +321,13 @@ class _CycleDatasetBase(Dataset):
         """
         bat = self._batteries[bidx]
         if self.FULL_CYCLE_MODE:
-            # 只取到 useable 圈，collate_fn 负责批次内 pad
-            curves = bat['curves'][:useable].copy()   # (useable, 3, L)
-            Q = bat['Q'][:useable].copy()             # (useable, n_grid)
-            mask = np.ones(useable, dtype=np.float32)
+            # soh_point 的语义是"给定当前观测到的这一圈，估计现在的 SOH"，
+            # 只需要 useable 这一圈本身的曲线，不需要从第1圈开始的完整历史
+            # （历史累积会让单电池数据量随圈数呈 O(N^2) 增长，ISU-ILCC 单电池
+            # 22000+ 圈时会导致单 epoch 数据量达 TB 级）。输出长度固定为 1。
+            curves = bat['curves'][useable - 1:useable]   # (1, 3, L) view
+            Q = bat['Q'][useable - 1:useable]              # (1, n_grid) view
+            mask = np.ones(1, dtype=np.float32)
         else:
             curves = bat['curves'].copy()             # (early_cycle, 3, L)
             Q = bat['Q'].copy()                       # (early_cycle, n_grid)

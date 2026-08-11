@@ -1,18 +1,13 @@
 """
 soh_point/mlp.py — MLP for SOH single-point estimation.
-Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
-        未观测圈已由 dataset 置零。
+Input:  batch['cycle_curve_data'] (B, S=1, 3, L) — S 恒为 1（每样本仅当前观测圈）。
+        直接将该圈的 3*L 曲线展平作为特征向量。
 Output: (pred:(B,1), None)
 """
 
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from src.models._masking import get_inputs, flatten_cycles
-
-
-_FIXED_S = 128  # AdaptiveAvgPool1d target — normalizes variable S to a fixed token count
+from src.models._masking import get_curve_seq
 
 
 class MLP(nn.Module):
@@ -22,8 +17,7 @@ class MLP(nn.Module):
         L       = cfg.get('data', {}).get('charge_discharge_length', 300)
         dropout = m.get('dropout', 0.1)
 
-        self.pool = nn.AdaptiveAvgPool1d(_FIXED_S)
-        in_dim = _FIXED_S * 3 * L
+        in_dim = 3 * L
         self.net = nn.Sequential(
             nn.Linear(in_dim, 256), nn.ReLU(), nn.Dropout(dropout),
             nn.Linear(256, 128),    nn.ReLU(), nn.Dropout(dropout),
@@ -32,15 +26,7 @@ class MLP(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x, _ = get_inputs(batch)              # (B, S, 3, L)
-        B, S, C, L = x.shape
-        x = flatten_cycles(x)                 # (B, S, 3*L)
-        xT = x.permute(0, 2, 1)              # (B, 3*L, S)
-        # coarse downsample when S is very large
-        if S > 2048:
-            stride = S // 1024
-            xT = F.avg_pool1d(xT, kernel_size=stride, stride=stride)
-        # pool S → _FIXED_S so the Linear head sees a fixed input size
-        xT = self.pool(xT)                   # (B, 3*L, _FIXED_S)
-        pred = self.net(xT.permute(0, 2, 1).reshape(B, -1))
+        x = get_curve_seq(batch)              # (B, L, 3)
+        B = x.shape[0]
+        pred = self.net(x.reshape(B, -1))
         return pred, None

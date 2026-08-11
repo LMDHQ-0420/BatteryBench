@@ -9,7 +9,7 @@ train:
   epochs: 10000
   patience: 30
   batch_size: 32
-  soh_point_batch_size: 2   # full_cycle_mode 下序列最长 22000 圈，需极小 batch
+  soh_point_batch_size: 64  # 单圈输入(S=1)，数据量小，可用较大 batch
   use_log_rul: false
 
 data:

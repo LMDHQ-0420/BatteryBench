@@ -1,8 +1,8 @@
 """
 soh_point/autoformer.py — Autoformer for SOH single-point estimation.
 Reference: Wu et al., NeurIPS 2021.
-Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
-        未观测圈已由 dataset 置零。每圈拼成 token (3*L)。
+Input:  batch['cycle_curve_data'] (B, S=1, 3, L) — S 恒为 1（每样本仅当前观测圈），
+        真实时序轴是圈内曲线 L（充放电采样点），3 为该圈的多变量通道。
 Output: (pred:(B,1), None)
 """
 
@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.models._masking import get_inputs, flatten_cycles
+from src.models._masking import get_curve_seq
 
 
 class _MyLayernorm(nn.Module):
@@ -21,7 +21,7 @@ class _MyLayernorm(nn.Module):
         super().__init__()
         self.layernorm = nn.LayerNorm(d_model)
 
-    def forward(self, x):          # x: (B, S, d)
+    def forward(self, x):          # x: (B, L, d)
         x_hat = self.layernorm(x)
         bias = x_hat.mean(dim=1, keepdim=True)
         return x_hat - bias
@@ -35,7 +35,7 @@ class _SeriesDecomp(nn.Module):
         self.kernel = kernel
         self.avg = nn.AvgPool1d(kernel_size=kernel, stride=1, padding=0)
 
-    def forward(self, x):          # x: (B, S, d)
+    def forward(self, x):          # x: (B, L, d)
         pad_l = (self.kernel - 1) // 2
         pad_r = self.kernel - 1 - pad_l
         front = x[:, :1, :].expand(-1, pad_l, -1)
@@ -60,30 +60,30 @@ class _AutoCorrelation(nn.Module):
         self.v_proj   = nn.Linear(d_model, d_model)
         self.out_proj = nn.Linear(d_model, d_model)
 
-    def forward(self, x):          # x: (B, S, d)
+    def forward(self, x):          # x: (B, L, d)
         B, S, d = x.shape
         H, E = self.n_heads, self.head_dim
-        q = self.q_proj(x).view(B, S, H, E).permute(0, 2, 3, 1)  # (B,H,E,S)
+        q = self.q_proj(x).view(B, S, H, E).permute(0, 2, 3, 1)  # (B,H,E,L)
         k = self.k_proj(x).view(B, S, H, E).permute(0, 2, 3, 1)
         v = self.v_proj(x).view(B, S, H, E).permute(0, 2, 3, 1)
 
         q_fft = torch.fft.rfft(q.contiguous(), dim=-1)
         k_fft = torch.fft.rfft(k.contiguous(), dim=-1)
-        corr  = torch.fft.irfft(q_fft * k_fft.conj(), n=S, dim=-1)  # (B,H,E,S)
+        corr  = torch.fft.irfft(q_fft * k_fft.conj(), n=S, dim=-1)  # (B,H,E,L)
 
         top_k = max(1, min(S, int(self.factor * math.log(max(S, 2)))))
         weights, delay = corr.topk(top_k, dim=-1)          # (B,H,E,top_k)
         tmp_corr = F.softmax(weights, dim=-1)
 
-        v_rep = v.repeat(1, 1, 1, 2)                        # (B,H,E,2S) 供环绕索引
+        v_rep = v.repeat(1, 1, 1, 2)                        # (B,H,E,2L) 供环绕索引
         init_index = torch.arange(S, device=x.device).view(1, 1, 1, S).expand(B, H, E, S)
         out = torch.zeros_like(v)
         for i in range(top_k):
-            idx = init_index + delay[..., i:i + 1]          # (B,H,E,S)
+            idx = init_index + delay[..., i:i + 1]          # (B,H,E,L)
             pattern = torch.gather(v_rep, dim=-1, index=idx)
             out = out + pattern * tmp_corr[..., i:i + 1]
 
-        out = out.permute(0, 3, 1, 2).reshape(B, S, d)       # (B,S,d)
+        out = out.permute(0, 3, 1, 2).reshape(B, S, d)       # (B,L,d)
         return self.out_proj(out)
 
 
@@ -101,7 +101,7 @@ class _AutoformerLayer(nn.Module):
         self.conv2 = nn.Conv1d(d_model * 4, d_model, kernel_size=1)
         self.drop  = nn.Dropout(dropout)
 
-    def forward(self, x):          # x: (B, S, d)
+    def forward(self, x):          # x: (B, L, d)
         x = x + self.drop(self.autocorr(x))
         x, _ = self.decomp1(x)
         y = self.drop(F.gelu(self.conv1(x.transpose(1, 2))))
@@ -115,16 +115,15 @@ class Autoformer(nn.Module):
         super().__init__()
         m = cfg.get('model', {})
         L        = cfg.get('data', {}).get('charge_discharge_length', 300)
-        sp_max   = cfg.get('data', {}).get('sp_max_cycles', 5000)
         d_model  = m.get('autoformer_d_model', 64)
         n_heads  = m.get('autoformer_n_heads', 4)
         n_layers = m.get('autoformer_n_layers', 2)
         kernel   = m.get('autoformer_kernel', 13)
         dropout  = m.get('dropout', 0.1)
 
-        self.input_proj = nn.Linear(3 * L, d_model)
-        pe = torch.zeros(sp_max, d_model)
-        pos = torch.arange(sp_max).unsqueeze(1).float()
+        self.input_proj = nn.Linear(3, d_model)
+        pe = torch.zeros(L, d_model)
+        pos = torch.arange(L).unsqueeze(1).float()
         div = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
         pe[:, 0::2] = torch.sin(pos * div)
         pe[:, 1::2] = torch.cos(pos * div)
@@ -140,21 +139,12 @@ class Autoformer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x, mask = get_inputs(batch)           # (B, S, 3, L), (B, S)
-        B, S = x.shape[0], x.shape[1]
-        x = flatten_cycles(x)                 # (B, S, 3*L)
-        h = self.input_proj(x)               # (B, S, d)
-        if S > 512:
-            stride = max(1, S // 512)
-            h    = F.avg_pool1d(h.permute(0,2,1), kernel_size=stride, stride=stride).permute(0,2,1)
-            mask = F.avg_pool1d(mask.unsqueeze(1).float(), kernel_size=stride, stride=stride).squeeze(1)
-            mask = (mask > 0).float()
-        S2 = h.shape[1]
-        h = h + self.pe[:, :S2, :]
+        x = get_curve_seq(batch)              # (B, L, 3) — 圈内曲线，L 为真实时序轴
+        h = self.input_proj(x)               # (B, L, d)
+        h = h + self.pe[:, :h.shape[1], :]
         for layer in self.layers:
             h = layer(h)
         h = self.norm(h)
-        m = mask.unsqueeze(-1)                # (B, S2, 1)
-        feat = (h * m).sum(1) / m.sum(1).clamp(min=1)        # masked mean
+        feat = h.mean(dim=1)                  # (B, d)
         pred = self.head(feat)                # (B, 1)
         return pred, None

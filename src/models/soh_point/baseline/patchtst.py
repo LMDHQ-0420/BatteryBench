@@ -1,20 +1,16 @@
 """
 soh_point/patchtst.py — PatchTST for SOH single-point estimation.
 Reference: Nie et al., ICLR 2023.
-Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
-        未观测圈已由 dataset 置零。沿 cycle 轴切 patch，3 个曲线通道独立 patch
+Input:  batch['cycle_curve_data'] (B, S=1, 3, L) — S 恒为 1（每样本仅当前观测圈）。
+        沿圈内曲线 L 轴切 patch，3 个曲线通道独立 patch
         （channel-independent，共享同一套 patch 投影/编码器权重，仅在输出头处混合）。
 Output: (pred:(B,1), None)
 """
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from src.models._masking import get_inputs
-
-
-_FIXED_PATCHES = 32  # head always sees this many patches regardless of actual S
+from src.models._masking import get_curve_seq
 
 
 class PatchTST(nn.Module):
@@ -22,7 +18,6 @@ class PatchTST(nn.Module):
         super().__init__()
         m = cfg.get('model', {})
         L         = cfg.get('data', {}).get('charge_discharge_length', 300)
-        sp_max    = cfg.get('data', {}).get('sp_max_cycles', 5000)
         patch_len = m.get('patchtst_patch_len', 16)
         stride    = m.get('patchtst_stride', 8)
         d_model   = m.get('patchtst_d_model', 64)
@@ -32,15 +27,13 @@ class PatchTST(nn.Module):
 
         self.n_channels = 3
         self.L          = L
-        self.patch_len  = patch_len
+        self.patch_len  = min(patch_len, L)
         self.stride     = stride
 
-        # max possible patches for the largest expected S
-        max_patches = max(1, (sp_max - patch_len) // stride + 1)
+        n_patches = max(1, (L - self.patch_len) // stride + 1)
 
-        self.patch_proj = nn.Linear(patch_len * L, d_model)
-        # large buffer sliced to actual P at runtime
-        self.pos_emb    = nn.Parameter(torch.zeros(1, max_patches, d_model))
+        self.patch_proj = nn.Linear(self.patch_len, d_model)
+        self.pos_emb    = nn.Parameter(torch.zeros(1, n_patches, d_model))
         nn.init.trunc_normal_(self.pos_emb, std=0.02)
 
         enc_layer = nn.TransformerEncoderLayer(
@@ -49,57 +42,29 @@ class PatchTST(nn.Module):
             dropout=dropout, batch_first=True,
         )
         self.encoder = nn.TransformerEncoder(enc_layer, num_layers=n_layers)
-        # pool P → _FIXED_PATCHES so head Linear is independent of actual P
-        self.patch_pool = nn.AdaptiveAvgPool1d(_FIXED_PATCHES)
         self.head = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(self.n_channels * _FIXED_PATCHES * d_model, d_model), nn.ReLU(), nn.Dropout(dropout),
+            nn.Linear(self.n_channels * n_patches * d_model, d_model), nn.ReLU(), nn.Dropout(dropout),
             nn.Linear(d_model, 1),
         )
 
-    def _revin_normalize(self, x, mask):
-        """RevIN 风格的实例归一化：按 (B, channel) 在已观测圈上求 mean/std，
-        未观测圈保持置零，避免归一化后泄漏非零值。"""
-        m = mask.unsqueeze(-1).unsqueeze(-1)                    # (B, S, 1, 1)
-        count = (mask.sum(dim=1) * self.L).clamp(min=1).view(-1, 1, 1, 1)  # (B,1,1,1)
-        mean = (x * m).sum(dim=1, keepdim=True).sum(dim=3, keepdim=True) / count  # (B,1,C,1)
-        var = ((x - mean) ** 2 * m).sum(dim=1, keepdim=True).sum(dim=3, keepdim=True) / count
-        std = torch.sqrt(var + 1e-5)
-        x_norm = (x - mean) / std
-        return x_norm * m
+    def _revin_normalize(self, x):
+        """RevIN 风格的实例归一化：按 (B, channel) 在 L 轴上求 mean/std。"""
+        mean = x.mean(dim=-1, keepdim=True)                   # (B, C, 1)
+        std = torch.sqrt(x.var(dim=-1, keepdim=True) + 1e-5)
+        return (x - mean) / std
 
     def forward(self, batch: dict):
-        x, mask = get_inputs(batch)           # (B, S, 3, L), (B, S)
-        B, S, C, L = x.shape
-        # coarse pool when S is very large before patching
-        if S > 2048:
-            stride_pre = max(1, S // 2048)
-            x    = F.avg_pool1d(x.reshape(B, S, C*L).permute(0,2,1),
-                                kernel_size=stride_pre, stride=stride_pre).permute(0,2,1).reshape(B,-1,C,L)
-            mask = F.avg_pool1d(mask.unsqueeze(1).float(),
-                                kernel_size=stride_pre, stride=stride_pre).squeeze(1)
-            mask = (mask > 0).float()
-            S = x.shape[1]
-        x = self._revin_normalize(x, mask)    # (B, S, 3, L)
+        x = get_curve_seq(batch)               # (B, L, 3)
+        xc = x.permute(0, 2, 1)                # (B, C=3, L)
+        xc = self._revin_normalize(xc)         # (B, C, L)
 
-        xc = x.permute(0, 2, 1, 3).reshape(B * C, S, L)         # (B*C, S, L)
-        patches = xc.unfold(1, self.patch_len, self.stride)     # (B*C, P, L, patch_len)
-        Bc, P, _, PL = patches.shape
-        patches = patches.permute(0, 1, 3, 2).reshape(Bc, P, PL * L)  # (B*C, P, patch_len*L)
+        B, C, L = xc.shape
+        patches = xc.unfold(-1, self.patch_len, self.stride)   # (B, C, P, patch_len)
+        patches = patches.reshape(B * C, -1, self.patch_len)   # (B*C, P, patch_len)
 
-        h = self.patch_proj(patches) + self.pos_emb[:, :P, :]
-
-        mpatch = mask.unfold(1, self.patch_len, self.stride)    # (B, P, patch_len)
-        kpm = mpatch.sum(-1) <= 0                                # (B, P) bool
-        kpm = kpm.repeat_interleave(C, dim=0)                    # (B*C, P)
-        full_mask_rows = kpm.all(dim=1)
-        if full_mask_rows.any():
-            kpm = kpm.clone()
-            kpm[full_mask_rows] = False
-
-        h = self.encoder(h, src_key_padding_mask=kpm)            # (B*C, P, d_model)
-        # pool P → _FIXED_PATCHES so head Linear is S-independent
-        h = self.patch_pool(h.permute(0, 2, 1)).permute(0, 2, 1)  # (B*C, _FIXED_PATCHES, d_model)
-        h = h.reshape(B, C, _FIXED_PATCHES, -1)                   # (B, C, _FIXED_PATCHES, d_model)
-        pred = self.head(h)                                      # (B, 1)
+        h = self.patch_proj(patches) + self.pos_emb            # (B*C, P, d_model)
+        h = self.encoder(h)                                    # (B*C, P, d_model)
+        h = h.reshape(B, C, h.shape[1], -1)                     # (B, C, P, d_model)
+        pred = self.head(h)                                     # (B, 1)
         return pred, None

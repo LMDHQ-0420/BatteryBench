@@ -1,8 +1,8 @@
 """
 soh_point/timemixer.py — TimeMixer for SOH single-point estimation.
 Reference: Wang et al., ICLR 2024 (simplified adaptation).
-Input:  batch['cycle_curve_data'] (B, S, 3, L) + batch['curve_attn_mask'] (B, S)
-        未观测圈已由 dataset 置零。每圈拼成 token (3*L)，沿 cycle 轴多尺度混合。
+Input:  batch['cycle_curve_data'] (B, S=1, 3, L) — S 恒为 1（每样本仅当前观测圈）。
+        真实时序轴是圈内曲线 L，逐时间步的 3 通道向量视作该步的 token，沿 L 轴多尺度混合。
 Output: (pred:(B,1), None)
 """
 
@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.models._masking import get_inputs, flatten_cycles
+from src.models._masking import get_curve_seq
 
 
 class TimeMixer(nn.Module):
@@ -21,13 +21,10 @@ class TimeMixer(nn.Module):
         d_model = m.get('timemixer_d_model', 64)
         dropout = m.get('dropout', 0.1)
         scales  = m.get('timemixer_scales', [1, 4, 8, 16])
-        F_dim   = 3 * L
 
-        # Fixed token counts per scale (ratio-based, independent of input S)
-        _base = 64
-        self.fixed_lens = [max(1, _base // k) for k in scales]
+        self.fixed_lens = [max(1, L // k) for k in scales]
 
-        self.input_proj = nn.Linear(F_dim, d_model)
+        self.input_proj = nn.Linear(3, d_model)
         self.pools      = nn.ModuleList()
         self.mixers     = nn.ModuleList()
 
@@ -44,15 +41,10 @@ class TimeMixer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x, _ = get_inputs(batch)              # (B, S, 3, L)  未观测圈已置零
-        B, S = x.shape[0], x.shape[1]
-        x = flatten_cycles(x)                 # (B, S, F)
-        h  = self.input_proj(x)              # (B, S, d)
-        hT = h.permute(0, 2, 1)             # (B, d, S)
-        # coarse downsample when S is very large to avoid CUDA AdaptiveAvgPool limits
-        if S > 2048:
-            stride = S // 1024
-            hT = F.avg_pool1d(hT, kernel_size=stride, stride=stride)
+        x = get_curve_seq(batch)              # (B, L, 3)
+        B = x.shape[0]
+        h  = self.input_proj(x)               # (B, L, d)
+        hT = h.permute(0, 2, 1)               # (B, d, L)
         scale_feats = []
         for pool, mixer, fixed_len in zip(self.pools, self.mixers, self.fixed_lens):
             hs = pool(hT)                        # (B, d, fixed_len)
