@@ -11,6 +11,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from src.evaluate.output import PredictionWriter
 from typing import Dict, Optional
 
 
@@ -20,15 +21,14 @@ def evaluate(
     device: str,
     scaler_path: Optional[str] = None,
     use_log_rul: bool = False,
+    output_dir=None,
 ) -> Dict[str, float]:
     scaler = None
     if scaler_path:
-        try:
-            with open(scaler_path, 'rb') as f:
-                scaler = pickle.load(f)
-        except Exception:
-            pass
+        with open(scaler_path, 'rb') as f:
+            scaler = pickle.load(f)
 
+    writer = PredictionWriter(output_dir, loader.dataset, 'rul') if output_dir else None
     model.eval()
     preds, trues = [], []
 
@@ -46,8 +46,14 @@ def evaluate(
             if use_log_rul:
                 pred = np.expm1(pred)
 
+            if writer:
+                writer.write(true_eol, pred)
+
             preds.extend(pred.tolist())
             trues.extend(true_eol.tolist())
+
+    if writer:
+        writer.close()
 
     preds = np.array(preds, dtype=np.float64)
     trues = np.array(trues, dtype=np.float64)

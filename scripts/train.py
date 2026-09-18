@@ -53,7 +53,7 @@ def _build_full_dataset(spec, cfg, dirs, exclude_pattern):
 
 
 def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
-                    split_idx, save_dir: str, device: str):
+                    split_idx, save_dir: str, device: str, seed: int = 42):
     spec          = get_spec(model_name, task)
     d_cfg         = cfg['data']
     t_cfg         = cfg['train']
@@ -64,7 +64,7 @@ def train_one_model(model_name: str, task: str, domain: str, cfg: dict,
     if spec.batch_size_cap:
         batch_size = min(batch_size, spec.batch_size_cap)
 
-    model_save_dir = os.path.join(save_dir, model_name)
+    model_save_dir = os.path.join(save_dir, model_name, f'seed{seed}')
     os.makedirs(model_save_dir, exist_ok=True)
 
     exclude_pattern = d_cfg.get('exclude_pattern', None)
@@ -143,8 +143,8 @@ def main():
                         help='rul | soh_point | soh_traj. Defaults to config data.task.')
     parser.add_argument('--split_idx', type=int, default=None,
                         help='Only run this split (1-based). Ignored for four_level.')
-    parser.add_argument('--seed',      type=int, default=None,
-                        help='Random seed. If not set, no seed is fixed.')
+    parser.add_argument('--seed',      type=int, default=42,
+                        help='Random seed. Also selects the results/<model>/seed<N>/ save subdir.')
     parser.add_argument('--gpu',       type=int, default=None,
                         help='GPU index to use (e.g. 0, 1). Defaults to cuda:0 if available.')
     parser.add_argument('--config',    default='configs/default.yaml')
@@ -174,8 +174,8 @@ def main():
         if m not in task_models:
             print(f'Unknown model "{m}" for task "{task}", skipping.')
             continue
-        print(f'\n{"="*60}\n  Model: {m.upper()}  |  Task: {task}  |  Domain: {args.domain}\n{"="*60}')
-        train_one_model(m, task, args.domain, cfg, args.split_idx, save_dir, device)
+        print(f'\n{"="*60}\n  Model: {m.upper()}  |  Task: {task}  |  Domain: {args.domain}  |  Seed: {args.seed}\n{"="*60}')
+        train_one_model(m, task, args.domain, cfg, args.split_idx, save_dir, device, seed=args.seed)
 
 
 if __name__ == '__main__':

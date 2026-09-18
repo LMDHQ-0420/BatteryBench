@@ -14,6 +14,10 @@ import os
 import sys
 import json
 import glob
+import fnmatch
+import fcntl
+from importlib import import_module
+from pathlib import Path
 import argparse
 
 import numpy as np
@@ -59,179 +63,157 @@ def _build_full_dataset(spec, cfg, dirs, exclude_pattern):
     )
 
 
-def _eval_dl(spec, cfg, task, model, test_ds, batch_size, device, scaler_path=None):
-    """跑一个 test 子集，返回 metrics dict。"""
-    evaluate_fn = _get_evaluate_fn(task)
-    eol_thr = cfg['data'].get('eol_threshold', cfg['data'].get('soh_threshold', 0.80))
+def _load_model(spec, cfg, checkpoint, device, train_ds=None):
+    model = spec.build_fn(cfg).to(device)
+    model.load_state_dict(torch.load(checkpoint, map_location=device, weights_only=True))
+    if train_ds is not None:
+        # BatLiNet 的参考池来自训练集；固定抽样便于重复评估。
+        indices = np.random.default_rng(42).choice(
+            len(train_ds), min(model.n_ref, len(train_ds)), replace=False)
+        samples = [train_ds[int(i)] for i in indices]
+        label = {'rul': 'eol', 'soh_point': 'soh_point', 'soh_traj': 'soh_traj'}[cfg['data']['task']]
+        model.set_reference(torch.stack([s['Q'] for s in samples]).to(device),
+                            torch.stack([s[label] for s in samples]).to(device))
+    return model
+
+
+def _eval_dl(cfg, task, model, test_ds, batch_size, device, checkpoint, output_dir):
     loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=0,
                         collate_fn=soh_point_collate_fn if task == 'soh_point' else None)
+    options = {'output_dir': output_dir}
     if task == 'soh_traj':
-        return evaluate_fn(model, loader, device,
-                           n_future=cfg['data'].get('n_future', 5000),
-                           eol_threshold=eol_thr)
-    if task == 'rul' and scaler_path and os.path.exists(scaler_path):
-        return evaluate_fn(model, loader, device, scaler_path=scaler_path)
-    return evaluate_fn(model, loader, device)
+        options.update(n_future=cfg['data'].get('n_future', 5000),
+                       eol_threshold=cfg['data'].get('eol_threshold', cfg['data'].get('soh_threshold', 0.80)))
+    elif task == 'rul':
+        scaler_path = checkpoint.replace('.pt', '_scaler.pkl')
+        if os.path.exists(scaler_path):
+            options['scaler_path'] = scaler_path
+    return _get_evaluate_fn(task)(model, loader, device, **options)
 
 
-def evaluate_one_model(model_name, task, domain, cfg, save_dir, device):
-    spec       = get_spec(model_name, task)
-    d_cfg      = cfg['data']
-    t_cfg      = cfg['train']
-    strategy   = d_cfg.get('split_strategy', 'random')
-    batch_size = t_cfg.get('batch_size', 32)
-    if task == 'soh_point':
-        batch_size = t_cfg.get('soh_point_batch_size', batch_size)
+def _write_json(path, result):
+    with open(path, 'w') as file:
+        json.dump(result, file, indent=2)
+
+
+def _save_seed_summary(model_dir, domain, task, model_name):
+    # 同一模型的多个 seed 可并发评估，汇总写入需串行。
+    with open(Path(model_dir) / 'summary.json', 'a+') as file:
+        fcntl.flock(file, fcntl.LOCK_EX)
+        seeds = {}
+        for seed in [1, 7, 42, 123, 2024]:
+            path = Path(model_dir) / f'seed{seed}' / 'results.json'
+            if path.exists():
+                with path.open() as seed_file:
+                    result = json.load(seed_file)
+                seeds[str(seed)] = result['level_summary'] if domain == 'four_level' else result['mean']
+        def aggregate(metrics):
+            keys = [key for key in metrics[0] if key not in ('n_samples', 'n_batteries')]
+            return {stat: {key: float(function([m[key] for m in metrics])) for key in keys}
+                    for stat, function in [('mean', np.mean), ('std', np.std)]}
+        if domain == 'four_level':
+            levels = sorted({level for summary in seeds.values() for level in summary})
+            statistics = {level: aggregate([summary[level] for summary in seeds.values()
+                                            if level in summary]) for level in levels}
+        else:
+            statistics = aggregate(list(seeds.values()))
+        file.seek(0)
+        file.truncate()
+        json.dump({'domain': domain, 'task': task, 'model': model_name,
+                   'n_seeds': len(seeds), 'seeds': seeds, 'statistics': statistics}, file, indent=2)
+
+
+def evaluate_one_model(model_name, task, domain, cfg, save_dir, device, seed=42):
+    spec = get_spec(model_name, task)
+    cfg['data']['task'] = task
+    batch_size = cfg['train'].get(
+        'soh_point_batch_size' if task == 'soh_point' else 'batch_size', 32)
     if spec.batch_size_cap:
         batch_size = min(batch_size, spec.batch_size_cap)
-
-    model_save_dir = os.path.join(save_dir, model_name)
-    exclude_pattern = d_cfg.get('exclude_pattern', None)
-    train_dirs      = d_cfg.get('train_dirs', []) if strategy == 'four_level' else None
-    dirs = train_dirs if train_dirs else get_pkl_dir(d_cfg)
-
-    if strategy == 'four_level':
-        _eval_four_level(model_name, task, domain, spec, cfg, dirs,
-                          exclude_pattern, batch_size, model_save_dir, device)
-        return
-
-    full_ds = _build_full_dataset(spec, cfg, dirs, exclude_pattern)
-    all_splits = make_battery_splits(full_ds, cfg, seed=42)
-
-    # ── sklearn 模型 ─────────────────────────────────────────────────────────
-    if spec.build_fn is None:
-        all_metrics = []
-        for i, split in enumerate(all_splits):
-            si = i + 1
-            pkl_path = os.path.join(model_save_dir, f'split{si}.pkl')
-            if not os.path.exists(pkl_path):
-                continue
-            test_ds = split['test'] if split['test'] is not None else split['val']
-            if len(test_ds) == 0:
-                continue
-            print(f'\n--- Split {si} (n={len(test_ds)}) ---')
-            from importlib import import_module
-            ev = import_module(f'src.train.{task}.train_severson').evaluate
-            metrics = ev(test_ds, pkl_path)
-            _print_metrics(metrics)
-            all_metrics.append(metrics)
-        _save_splits(all_metrics, domain, task, model_name, model_save_dir)
-        return
-
-    # ── 神经网络模型 ─────────────────────────────────────────────────────────
-    all_metrics = []
-    for i, split in enumerate(all_splits):
-        si = i + 1
-        ckpt = os.path.join(model_save_dir, f'split{si}.pt')
-        if not os.path.exists(ckpt):
-            continue
-        test_ds = split['test'] if split['test'] is not None else split['val']
-        if len(test_ds) == 0:
-            continue
-        model = spec.build_fn(cfg).to(device)
-        model.load_state_dict(torch.load(ckpt, map_location=device, weights_only=True))
-        scaler_path = ckpt.replace('.pt', '_scaler.pkl')
-        print(f'\n--- Split {si} (n={len(test_ds)}) ---')
-        if task == 'rul' and os.path.exists(scaler_path):
-            loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=0)
-            metrics = eval_rul.evaluate(model, loader, device, scaler_path=scaler_path)
-        else:
-            metrics = _eval_dl(spec, cfg, task, model, test_ds, batch_size, device)
-        _print_metrics(metrics)
-        all_metrics.append(metrics)
-    _save_splits(all_metrics, domain, task, model_name, model_save_dir)
-
-
-def _save_splits(all_metrics, domain, task, model_name, model_save_dir):
-    if not all_metrics:
-        print('  No checkpoints found; nothing to evaluate.')
-        return
-    keys = list(all_metrics[0].keys())
-    result_path = os.path.join(model_save_dir, 'results.json')
-    with open(result_path, 'w') as f:
-        json.dump({
-            'domain': domain, 'task': task, 'model': model_name,
-            'splits': all_metrics,
-            'mean': {k: float(np.mean([m[k] for m in all_metrics])) for k in keys},
-            'std':  {k: float(np.std( [m[k] for m in all_metrics])) for k in keys},
-        }, f, indent=2)
-    print(f'  Saved → {result_path}')
-
-
-def _eval_four_level(model_name, task, domain, spec, cfg, train_dirs,
-                      exclude_pattern, batch_size, model_save_dir, device):
-    d_cfg = cfg['data']
-    test_sets = d_cfg.get('test_sets', [])
-    ckpt = os.path.join(model_save_dir, 'best.pt')
-    pkl  = os.path.join(model_save_dir, 'best.pkl')
-    is_sklearn = spec.build_fn is None
-
-    model = None
-    scaler_path = ckpt.replace('.pt', '_scaler.pkl')
-    if not is_sklearn:
-        if not os.path.exists(ckpt):
-            print(f'  No checkpoint at {ckpt}.'); return
-        model = spec.build_fn(cfg).to(device)
-        model.load_state_dict(torch.load(ckpt, map_location=device, weights_only=True))
+    model_dir = os.path.join(save_dir, model_name)
+    seed_dir = os.path.join(model_dir, f'seed{seed}')
+    if cfg['data'].get('split_strategy') == 'four_level':
+        _eval_four_level(model_name, task, spec, cfg, batch_size, seed_dir, device)
     else:
-        if not os.path.exists(pkl):
-            print(f'  No pkl at {pkl}.'); return
-        from importlib import import_module
-        sk_eval = import_module(f'src.train.{task}.train_severson').evaluate
+        full_ds = _build_full_dataset(spec, cfg, get_pkl_dir(cfg['data']), None)
+        splits = make_battery_splits(full_ds, cfg, seed=42)
+        metrics = []
+        for index, split in enumerate(splits, 1):
+            extension = 'pkl' if spec.build_fn is None else 'pt'
+            checkpoint = os.path.join(seed_dir, f'split{index}.{extension}')
+            output_dir = os.path.join(seed_dir, 'test', f'split{index}')
+            test_ds = split['test']
+            if spec.build_fn is None:
+                evaluate = import_module(f'src.train.{task}.train_severson').evaluate
+                result = evaluate(test_ds, checkpoint, output_dir=output_dir)
+            else:
+                model = _load_model(spec, cfg, checkpoint, device,
+                                    split['train'] if model_name == 'batlinet' else None)
+                result = _eval_dl(cfg, task, model, test_ds, batch_size, device,
+                                  checkpoint, output_dir)
+            _print_metrics(result)
+            metrics.append(result)
+        keys = list(metrics[0])
+        _write_json(os.path.join(seed_dir, 'results.json'), {
+            'domain': domain, 'task': task, 'model': model_name,
+            'splits': [{'split_idx': index, 'n_samples': len(split['test']),
+                         'n_batteries': len({bidx for bidx, _ in split['test']._samples}), **result}
+                       for index, (split, result) in enumerate(zip(splits, metrics), 1)],
+            'mean': {key: float(np.mean([m[key] for m in metrics])) for key in keys},
+            'std': {key: float(np.std([m[key] for m in metrics])) for key in keys}})
+    _save_seed_summary(model_dir, domain, task, model_name)
 
-    by_level, all_results = {}, []
-    for ts in test_sets:
-        ts_dir, level = ts['dir'], ts['level']
-        pattern = ts.get('pattern', None)
-        ds_name = os.path.basename(ts_dir) + (f'[{pattern}]' if pattern else '')
-        pkl_files = None
-        if pattern:
-            import fnmatch
-            allf = sorted(glob.glob(os.path.join(ts_dir, '*.pkl')))
-            pkl_files = [f for f in allf if fnmatch.fnmatch(os.path.basename(f), pattern)]
-        test_ds = _build_full_dataset(spec, cfg,
-                                      [ts_dir] if pkl_files is None else ts_dir,
-                                      None)
-        if pkl_files is not None:
-            # rebuild restricted to matched files
-            test_ds = spec.dataset_cls(
-                ts_dir, n_grid=d_cfg.get('n_grid', 200),
-                soh_threshold=d_cfg.get('soh_threshold', 0.80),
-                eol_threshold=d_cfg.get('eol_threshold', d_cfg.get('soh_threshold', 0.80)),
-                early_cycle=d_cfg.get('early_cycle', 100),
-                seq_len=d_cfg.get('seq_len', 1),
-                charge_discharge_length=d_cfg.get('charge_discharge_length', 300),
-                pkl_files=pkl_files,
-            )
-        n = len(test_ds)
-        if n == 0:
-            print(f'  [{level}] {ds_name}: empty, skipping.'); continue
-        if is_sklearn:
-            metrics = sk_eval(test_ds, pkl)
+
+def _eval_four_level(model_name, task, spec, cfg, batch_size, seed_dir, device):
+    data = cfg['data']
+    extension = 'pkl' if spec.build_fn is None else 'pt'
+    checkpoint = os.path.join(seed_dir, f'best.{extension}')
+    if spec.build_fn is None:
+        evaluate = import_module(f'src.train.{task}.train_severson').evaluate
+    else:
+        train_ds = None
+        if model_name == 'batlinet':
+            full_ds = _build_full_dataset(spec, cfg, data['train_dirs'], data.get('exclude_pattern'))
+            train_ds = make_battery_splits(full_ds, cfg, seed=42)[0]['train']
+        model = _load_model(spec, cfg, checkpoint, device, train_ds)
+    results, by_level = [], {}
+    for test_set in data['test_sets']:
+        directory, level = test_set['dir'], test_set['level']
+        files = sorted(glob.glob(os.path.join(directory, '*.pkl')))
+        files = [file for file in files
+                 if fnmatch.fnmatch(os.path.basename(file), test_set.get('pattern', '*.pkl'))]
+        test_ds = spec.dataset_cls(
+            directory, pkl_files=files, n_grid=data.get('n_grid', 200),
+            soh_threshold=data.get('soh_threshold', 0.80),
+            eol_threshold=data.get('eol_threshold', data.get('soh_threshold', 0.80)),
+            early_cycle=data.get('early_cycle', 100), seq_len=data.get('seq_len', 1),
+            charge_discharge_length=data.get('charge_discharge_length', 300))
+        name = os.path.basename(directory)
+        counts = {'dataset': name, 'level': level, 'n_samples': len(test_ds),
+                  'n_batteries': len({bidx for bidx, _ in test_ds._samples})}
+        if not len(test_ds):
+            results.append({**counts, 'status': 'empty'})
+            continue
+        output_dir = os.path.join(seed_dir, 'test', f'{level}_{name}')
+        if spec.build_fn is None:
+            metrics = evaluate(test_ds, checkpoint, output_dir=output_dir)
         else:
-            metrics = _eval_dl(spec, cfg, task, model, test_ds, batch_size, device,
-                               scaler_path=scaler_path)
-        print(f'  [{level}] {ds_name:22s} n={n:4d} | ' +
-              '  '.join(f'{k.upper()}={v:.4f}' for k, v in metrics.items()))
-        by_level.setdefault(level, []).append((metrics, n))
-        all_results.append({'dataset': ds_name, 'level': level, 'n_cells': n, **metrics})
-
-    if not all_results:
-        return
-    level_summary = {}
-    for level in sorted(by_level):
-        pairs = by_level[level]
-        keys = list(pairs[0][0].keys())
-        def _wavg(k):
-            valid = [(m[k], n) for m, n in pairs if m[k] == m[k]]
-            return sum(v * n for v, n in valid) / sum(n for _, n in valid) if valid else float('nan')
-        level_summary[level] = {**{k: _wavg(k) for k in keys},
-                                'n_cells': sum(n for _, n in pairs)}
-        print(f'  {level}: ' + '  '.join(f'{k.upper()}={level_summary[level][k]:.4f}' for k in keys))
-    with open(os.path.join(model_save_dir, 'results.json'), 'w') as f:
-        json.dump({'domain': 'four_level', 'task': task, 'model': model_name,
-                   'test_sets': all_results, 'level_summary': level_summary}, f, indent=2)
-    print(f'  Saved → {os.path.join(model_save_dir, "results.json")}')
+            metrics = _eval_dl(cfg, task, model, test_ds, batch_size, device,
+                               checkpoint, output_dir)
+        _print_metrics(metrics)
+        results.append({**counts, **metrics})
+        by_level.setdefault(level, []).append((metrics, counts))
+    summary = {}
+    for level, pairs in by_level.items():
+        n = sum(counts['n_samples'] for _, counts in pairs)
+        summary[level] = {
+            **{key: sum(metrics[key] * counts['n_samples'] for metrics, counts in pairs) / n
+               for key in pairs[0][0]},
+            'n_samples': n,
+            'n_batteries': sum(counts['n_batteries'] for _, counts in pairs)}
+    _write_json(os.path.join(seed_dir, 'results.json'), {
+        'domain': 'four_level', 'task': task, 'model': model_name,
+        'test_sets': results, 'level_summary': summary})
 
 
 def main():
@@ -240,6 +222,8 @@ def main():
     parser.add_argument('--model',  required=True)
     parser.add_argument('--task',   default=None, choices=list(ALL_TASKS))
     parser.add_argument('--gpu',    type=int, default=None)
+    parser.add_argument('--seed',   type=int, default=42,
+                        help='Selects the results/<model>/seed<N>/ subdir to evaluate.')
     parser.add_argument('--config', default='configs/default.yaml')
     parser.add_argument('--save_dir', default=None)
     args = parser.parse_args()
@@ -259,8 +243,8 @@ def main():
     for m in models:
         if m not in task_models:
             print(f'Unknown model "{m}" for task "{task}", skipping.'); continue
-        print(f'\n{"="*60}\n  Model: {m.upper()}  |  Task: {task}  |  Domain: {args.domain}\n{"="*60}')
-        evaluate_one_model(m, task, args.domain, cfg, save_dir, device)
+        print(f'\n{"="*60}\n  Model: {m.upper()}  |  Task: {task}  |  Domain: {args.domain}  |  Seed: {args.seed}\n{"="*60}')
+        evaluate_one_model(m, task, args.domain, cfg, save_dir, device, seed=args.seed)
 
 
 if __name__ == '__main__':

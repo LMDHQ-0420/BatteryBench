@@ -7,6 +7,7 @@ train/soh_point/train_severson.py — Severson ElasticNet for SOH point estimati
 import os
 import pickle
 import numpy as np
+from src.evaluate.output import PredictionWriter
 from sklearn.linear_model import ElasticNetCV
 from sklearn.preprocessing import StandardScaler
 
@@ -57,10 +58,15 @@ def train(train_ds, test_ds, save_path: str = None) -> dict:
     return _metrics(model.predict(X_test), y_test)
 
 
-def evaluate(test_ds, save_path: str) -> dict:
+def evaluate(test_ds, save_path: str, output_dir=None) -> dict:
     with open(save_path, 'rb') as f:
         obj = pickle.load(f)
     scaler, model = obj['scaler'], obj['model']
     X_test = scaler.transform(_extract_features(test_ds))
     y_test = _get_targets(test_ds)
-    return _metrics(model.predict(X_test), y_test)
+    prediction = model.predict(X_test)
+    if output_dir:
+        writer = PredictionWriter(output_dir, test_ds, 'soh_point')
+        writer.write(y_test, prediction)
+        writer.close()
+    return _metrics(prediction, y_test)

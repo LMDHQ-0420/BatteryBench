@@ -10,6 +10,7 @@ Severson 是 3 特征线性模型，无法直接产出 5000 维轨迹。此处�
 import os
 import pickle
 import numpy as np
+from src.evaluate.output import PredictionWriter
 from sklearn.linear_model import ElasticNetCV
 from sklearn.preprocessing import StandardScaler
 
@@ -74,11 +75,16 @@ def train(train_ds, test_ds, save_path: str = None, eol_threshold: float = 0.80)
     return _metrics(model.predict(X_test), y_test)
 
 
-def evaluate(test_ds, save_path: str) -> dict:
+def evaluate(test_ds, save_path: str, output_dir=None) -> dict:
     with open(save_path, 'rb') as f:
         obj = pickle.load(f)
     scaler, model = obj['scaler'], obj['model']
     thr = obj.get('eol_threshold', 0.80)
     X_test = scaler.transform(_extract_features(test_ds))
     y_test = _get_targets(test_ds, thr)
-    return _metrics(model.predict(X_test), y_test)
+    prediction = model.predict(X_test)
+    if output_dir:
+        writer = PredictionWriter(output_dir, test_ds, 'soh_traj')
+        writer.write(y_test, prediction)
+        writer.close()
+    return _metrics(prediction, y_test)

@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from src.evaluate.output import PredictionWriter
 from typing import Dict
 
 
@@ -16,7 +17,9 @@ def evaluate(
     model: nn.Module,
     loader: DataLoader,
     device: str,
+    output_dir=None,
 ) -> Dict[str, float]:
+    writer = PredictionWriter(output_dir, loader.dataset, 'soh_point') if output_dir else None
     model.eval()
     preds, trues = [], []
 
@@ -27,8 +30,14 @@ def evaluate(
                  for k, v in batch.items()}
             out = model(b)
             pred = (out[0] if isinstance(out, (tuple, list)) else out).cpu().numpy().flatten()
+            if writer:
+                writer.write(true_soh, pred)
+
             preds.extend(pred.tolist())
             trues.extend(true_soh.tolist())
+
+    if writer:
+        writer.close()
 
     preds = np.array(preds, dtype=np.float64)
     trues = np.array(trues, dtype=np.float64)
