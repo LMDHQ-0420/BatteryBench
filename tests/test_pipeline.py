@@ -16,12 +16,13 @@ spec.loader.exec_module(pipeline)
 
 class PipelineTests(unittest.TestCase):
     def test_gpu_slot_limits_and_wait_for_all_jobs(self):
-        for slots in (1, 4, 6):
-            with self.subTest(slots=slots):
-                active = {1: 0, 2: 0, 3: 0}
+        for gpu_slots in ({0: 2, 1: 3, 2: 3, 3: 3}, {1: 1, 2: 1, 3: 1}):
+            with self.subTest(gpu_slots=gpu_slots):
+                active = {gpu: 0 for gpu in gpu_slots}
                 maximum = dict(active)
                 completed = []
                 lock = threading.Lock()
+
                 def worker(job, args, gpu, phase, sets, future):
                     with lock:
                         active[gpu] += 1
@@ -31,13 +32,16 @@ class PipelineTests(unittest.TestCase):
                         active[gpu] -= 1
                         completed.append(job)
                     return True
-                args = SimpleNamespace(gpus=[1, 2, 3])
+
                 with patch.object(pipeline, 'run_job', worker):
-                    failures = pipeline.run_phase(list(range(35)), args, 'test', slots, set(), 5)
+                    failures = pipeline.run_phase(
+                        list(range(35)), SimpleNamespace(), 'test', gpu_slots, set(), 5,
+                    )
                 self.assertEqual(failures, [])
                 self.assertEqual(sorted(completed), list(range(35)))
-                self.assertTrue(all(v <= slots for v in maximum.values()))
-                self.assertEqual(active, {1: 0, 2: 0, 3: 0})
+                self.assertTrue(all(maximum[gpu] <= limit
+                                    for gpu, limit in gpu_slots.items()))
+                self.assertTrue(all(value == 0 for value in active.values()))
 
     def test_checkpoint_or_old_json_does_not_count_as_complete(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -81,8 +85,8 @@ class PipelineTests(unittest.TestCase):
                 else:
                     raise RuntimeError('temporary evaluation failure')
             with patch.object(pipeline, 'command', operation):
-                self.assertFalse(pipeline.run_job(job, args, 1, 'train_small', set(), 5))
-                self.assertFalse(pipeline.run_job(job, args, 1, 'train_small', set(), 5))
+                self.assertFalse(pipeline.run_job(job, args, 1, 'standard_domains', set(), 5))
+                self.assertFalse(pipeline.run_job(job, args, 1, 'standard_domains', set(), 5))
             self.assertEqual(calls, ['train', 'evaluate', 'evaluate'])
 
 
@@ -115,27 +119,34 @@ class PipelineTests(unittest.TestCase):
                 path.write_bytes(b'half_trained')
                 raise RuntimeError('interrupted training')
             with patch.object(pipeline, 'command', operation):
-                self.assertFalse(pipeline.run_job(job, args, 1, 'train_small', set(), 5))
-                self.assertFalse(pipeline.run_job(job, args, 1, 'train_small', set(), 5))
+                self.assertFalse(pipeline.run_job(job, args, 1, 'standard_domains', set(), 5))
+                self.assertFalse(pipeline.run_job(job, args, 1, 'standard_domains', set(), 5))
             self.assertEqual(calls, ['train', 'train'])
 
 
 
-    def test_all_batlinet_jobs_run_last_and_training_is_exclusive(self):
-        large = [dict(model='batlinet'), dict(model='mlp')]
-        small = [dict(model='lstm'), dict(model='batlinet')]
-        phases = pipeline.make_phases(large, small)
-        flattened = [(name, job, slots) for name, jobs, slots in phases for job in jobs]
-        seen_batlinet = False
-        for name, job, slots in flattened:
-            if job['model'] == 'batlinet':
-                seen_batlinet = True
-                if name.startswith('train'):
-                    self.assertEqual(slots, 1)
-            else:
-                self.assertFalse(seen_batlinet)
-        self.assertEqual(len(flattened), len(large + small))
-        self.assertEqual(len({id(job) for _, job, _ in flattened}), len(flattened))
+    def test_phase_order_counts_and_gpu_limits(self):
+        models = {task: {'gru', 'batlinet'} for task in pipeline.TASKS}
+        jobs = pipeline.build_jobs(models)
+        phases = pipeline.make_phases(jobs, [0, 1, 2, 3])
+
+        self.assertEqual(
+            [name for name, _, _ in phases],
+            ['four_level_soh_traj_seed1', 'four_level_soh_point_seed1',
+             'four_level_rul_seed1', 'four_level_seeds2_to5',
+             'standard_domains', 'batlinet_all'],
+        )
+        self.assertEqual([len(queue) for _, queue, _ in phases], [1, 1, 1, 12, 60, 75])
+        self.assertTrue(all(slots == {0: 2, 1: 3, 2: 3, 3: 3}
+                            for _, _, slots in phases[:-1]))
+        self.assertEqual(phases[-1][2], {1: 1, 2: 1, 3: 1})
+        self.assertTrue(all(job['model'] != 'batlinet'
+                            for _, queue, _ in phases[:-1] for job in queue))
+        self.assertTrue(all(job['model'] == 'batlinet' for job in phases[-1][1]))
+
+        scheduled = [pipeline.job_id(job) for _, queue, _ in phases for job in queue]
+        self.assertEqual(len(scheduled), len(jobs))
+        self.assertEqual(len(set(scheduled)), len(jobs))
 
 
 if __name__ == '__main__':

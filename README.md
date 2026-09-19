@@ -64,7 +64,7 @@ Resume the complete benchmark pipeline:
 
     bash run_pipeline.sh
 
-GPU 0 remains unused by the pipeline. Evaluation uses six slots per active GPU, ordinary model training uses four, and BatLiNet runs last with one slot per GPU. Recovery is based on complete checkpoints and evaluation artifacts.
+The pipeline first runs Four-Level seed 1 in the order SOH Trajectory, SOH Point, and RUL; it then runs Four-Level seeds 2–5, all standard-domain experiments, and finally every BatLiNet experiment. Ordinary models use two slots on GPU 0 and three slots on GPUs 1–3. BatLiNet uses one slot on GPUs 1–3 and never runs on GPU 0. Recovery is based on complete checkpoints and evaluation artifacts.
 
 ## Results
 

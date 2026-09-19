@@ -1,4 +1,4 @@
-"""先评估迁移的可信权重，再训练并评估其他实验；支持中断后重跑。"""
+"""Run the five-seed benchmark in ordered phases with resumable training and evaluation."""
 
 import argparse
 import ast
@@ -21,6 +21,9 @@ STOP = threading.Event()
 PRINT_LOCK = threading.Lock()
 CHILD_LOCK = threading.Lock()
 CHILDREN = set()
+DOMAINS = ('li_ion', 'calb', 'na_ion', 'zn_ion', 'four_level')
+TASKS = ('soh_traj', 'soh_point', 'rul')
+SEEDS = range(1, 6)
 
 
 def say(message):
@@ -236,9 +239,9 @@ def run_job(job, args, gpu, phase, expected_sets, n_future):
         return False
 
 
-def run_phase(jobs, args, phase, slots_per_gpu, expected_sets, n_future):
-    say(f'PHASE {phase}: {len(jobs)} jobs, GPUs={args.gpus}, 每卡 {slots_per_gpu} 槽')
-    slots = [gpu for gpu in args.gpus for _ in range(slots_per_gpu)]
+def run_phase(jobs, args, phase, gpu_slots, expected_sets, n_future):
+    slots = [gpu for gpu, count in gpu_slots.items() for _ in range(count)]
+    say(f'PHASE {phase}: {len(jobs)} jobs, slots={gpu_slots}')
     pending = iter(jobs)
     running = {}
     failures = []
@@ -250,11 +253,13 @@ def run_phase(jobs, args, phase, slots_per_gpu, expected_sets, n_future):
             if job is not None:
                 future = executor.submit(run_job, job, args, gpu, phase, expected_sets, n_future)
                 running[future] = (gpu, job)
+
         for gpu in slots:
             submit(gpu)
         while running:
-            done, _ = concurrent.futures.wait(running, timeout=1,
-                        return_when=concurrent.futures.FIRST_COMPLETED)
+            done, _ = concurrent.futures.wait(
+                running, timeout=1, return_when=concurrent.futures.FIRST_COMPLETED,
+            )
             for future in done:
                 gpu, job = running.pop(future)
                 if not future.result():
@@ -263,22 +268,47 @@ def run_phase(jobs, args, phase, slots_per_gpu, expected_sets, n_future):
     return failures
 
 
+def build_jobs(models):
+    return [
+        {'domain': domain, 'task': task, 'model': model, 'seed': seed}
+        for domain in DOMAINS
+        for task in TASKS
+        for model in sorted(models[task])
+        for seed in SEEDS
+    ]
 
-def make_phases(large, small):
-    # BatLiNet 训练显存占用大，排在全部普通模型之后并独占单卡。
-    large_other = [job for job in large if job['model'] != 'batlinet']
-    small_other = [job for job in small if job['model'] != 'batlinet']
-    batlinet = [job for job in large + small if job['model'] == 'batlinet']
-    return [('train_small', small_other, 4),
-            ('train_large', large_other, 1),
-            ('train_batlinet', batlinet, 1)]
+
+def make_phases(jobs, gpus):
+    normal_slots = {gpu: 2 if gpu == 0 else 3 for gpu in gpus}
+    batlinet_slots = {gpu: 1 for gpu in gpus if gpu != 0}
+    regular = [job for job in jobs if job['model'] != 'batlinet']
+    batlinet = [job for job in jobs if job['model'] == 'batlinet']
+
+    phases = []
+    for task in TASKS:
+        queue = [job for job in regular
+                 if job['domain'] == 'four_level' and job['task'] == task and job['seed'] == 1]
+        phases.append((f'four_level_{task}_seed1', queue, normal_slots))
+
+    remaining_four_level = [
+        job for seed in range(2, 6) for task in TASKS for job in regular
+        if job['domain'] == 'four_level' and job['seed'] == seed and job['task'] == task
+    ]
+    other_domains = [
+        job for domain in DOMAINS[:-1] for task in TASKS for seed in SEEDS for job in regular
+        if job['domain'] == domain and job['task'] == task and job['seed'] == seed
+    ]
+    phases.extend([
+        ('four_level_seeds2_to5', remaining_four_level, normal_slots),
+        ('standard_domains', other_domains, normal_slots),
+        ('batlinet_all', batlinet, batlinet_slots),
+    ])
+    return phases
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--gpus', nargs='+', type=int, default=[1, 2, 3])
-    parser.add_argument('--large-models', nargs='+', default=['batlinet'],
-                        help='独占 GPU 的模型名，或 task/model，例如 soh_traj/mlp')
+    parser.add_argument('--gpus', nargs='+', type=int, default=[0, 1, 2, 3])
     parser.add_argument('--job-threads', type=int, default=3)
     parser.add_argument('--config', type=Path, default=ROOT / 'configs/default.yaml')
     parser.add_argument('--results-dir', type=Path, default=ROOT / 'results')
@@ -287,8 +317,8 @@ def main():
                         default=ROOT / 'log' / time.strftime('%Y-%m-%d_%H-%M-%S_pipeline'))
     parser.add_argument('--dry-run', action='store_true', help='只输出调度计划，不训练或评估')
     args = parser.parse_args()
-    if 0 in args.gpus or len(set(args.gpus)) != len(args.gpus) or min(args.gpus) < 1:
-        parser.error('GPU 0 必须保留空闲；GPU 编号不能重复')
+    if set(args.gpus) != {0, 1, 2, 3} or len(args.gpus) != 4:
+        parser.error('批处理固定使用 GPU 0、1、2、3，且不能重复')
     if args.job_threads < 1:
         parser.error('--job-threads 必须为正整数')
     for name in ('config', 'results_dir', 'state_dir', 'log_dir'):
@@ -304,35 +334,18 @@ def main():
                 and isinstance(x.target, ast.Name) and x.target.id == '_REGISTRY')
     models = {ast.literal_eval(k): {ast.literal_eval(m) for m in v.keys}
               for k, v in zip(node.value.keys, node.value.values)}
-    jobs = [
-        {'domain': domain, 'task': task, 'model': model, 'seed': seed}
-        for domain in ('li_ion', 'calb', 'na_ion', 'zn_ion', 'four_level')
-        for task in sorted(models)
-        for model in sorted(models[task])
-        for seed in range(1, 6)
-    ]
-    valid_large = {m for names in models.values() for m in names} | {
-        f'{t}/{m}' for t, names in models.items() for m in names}
-    if not set(args.large_models) <= valid_large:
-        parser.error('存在未注册的 --large-models 名称')
-    large, small, finished = [], [], []
-    for job in jobs:
-        if result_complete(job, args, expected_sets, n_future):
-            finished.append(job)
-        elif (job['model'] == 'batlinet' or job['model'] in args.large_models
-              or f"{job['task']}/{job['model']}" in args.large_models):
-            large.append(job)
-        else:
-            small.append(job)
-    say(f'总计 {len(jobs)}；新格式已完成 {len(finished)}；'
-        f'待训大模型 {len(large)}；待训其余模型 {len(small)}')
-    say(f'GPU 0 保留；测评 {len(args.gpus)*6} 槽；'
-        f'大模型训练 {len(args.gpus)} 槽；其余训练 {len(args.gpus)*4} 槽；'
-        f'大模型={args.large_models}')
-    phases = make_phases(large, small)
+    jobs = build_jobs(models)
+    finished = [job for job in jobs if result_complete(job, args, expected_sets, n_future)]
+    complete_ids = {job_id(job) for job in finished}
+    pending = [job for job in jobs if job_id(job) not in complete_ids]
+    phases = make_phases(pending, args.gpus)
+
+    say(f'总计 {len(jobs)}；已完成 {len(finished)}；待运行 {len(pending)}')
+    say('普通模型槽位 GPU0=2、GPU1=3、GPU2=3、GPU3=3；'
+        'BatLiNet 槽位 GPU1=1、GPU2=1、GPU3=1')
     for phase, queue, slots in phases:
         if queue:
-            say(f'计划 {phase}: {len(queue)} 个实验，每卡 {slots} 槽')
+            say(f'计划 {phase}: {len(queue)} 个实验，slots={slots}')
     if args.dry_run:
         return 0
     args.state_dir.mkdir(parents=True, exist_ok=True)
@@ -346,19 +359,22 @@ def main():
             parser.error('所需 GPU 不可用；请在 zw@BatteryBench 环境启动')
         args.log_dir.mkdir(parents=True, exist_ok=True)
         write_json(args.log_dir / 'plan.json', {
-                   'train_large': large, 'train_small': small, 'already_complete': finished,
-                   'phases': [{'name': name, 'jobs': queue, 'slots_per_gpu': slots}
-                              for name, queue, slots in phases]})
+            'already_complete': finished,
+            'phases': [{'name': name, 'jobs': queue, 'gpu_slots': slots}
+                       for name, queue, slots in phases],
+        })
         signal.signal(signal.SIGINT, stop_children)
         signal.signal(signal.SIGTERM, stop_children)
         failures = []
         # 阶段间等待全部进程结束，避免训练占用测评槽或大模型与其他任务争显存。
-        for phase, queue, slots in phases:
+        for phase, queue, gpu_slots in phases:
             if STOP.is_set():
                 break
             if not queue:
                 continue
-            failures += run_phase(queue, args, phase, slots, expected_sets, n_future)
+            failures += run_phase(
+                queue, args, phase, gpu_slots, expected_sets, n_future,
+            )
         write_json(args.log_dir / 'run_summary.json', {'failed_jobs': failures,
                    'interrupted': STOP.is_set(), 'state_dir': str(args.state_dir)})
         say(f'运行结束；失败 {len(failures)}；日志 {args.log_dir}')

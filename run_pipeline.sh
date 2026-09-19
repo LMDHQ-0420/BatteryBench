@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 使用 GPU 1/2/3；先测评可信权重，再重训并测评其余实验。
+# 按预定阶段使用 GPU 0/1/2/3 训练并测评；BatLiNet 最后运行且不使用 GPU 0。
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 CONDA_ENV="zw@BatteryBench"

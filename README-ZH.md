@@ -64,7 +64,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 
     bash run_pipeline.sh
 
-流水线保留 GPU 0。测评时每张启用的 GPU 使用 6 个槽，普通模型训练使用 4 个槽，BatLiNet 最后运行且每张 GPU 只使用 1 个槽。恢复判定同时检查完整权重和测评产物。
+流水线先依次运行 Four-Level 的 SOH Trajectory、SOH Point、RUL 的 seed 1，然后运行 Four-Level 的 seed 2–5、所有普通域实验，最后运行全部 BatLiNet。普通模型在 GPU 0 使用 2 个槽，在 GPU 1–3 各使用 3 个槽；BatLiNet 只在 GPU 1–3 各使用 1 个槽，绝不使用 GPU 0。恢复判定同时检查完整权重和测评产物。
 
 ## 结果
 
