@@ -40,8 +40,10 @@ def evaluate(
             pred = (out[0] if isinstance(out, (tuple, list)) else out).cpu()
 
             if writer:
-                writer.write((true_traj * scale + eol_threshold).numpy(),
-                             (pred * scale + eol_threshold).numpy(), tmask.numpy() > 0)
+                # Match metric precision before storing float32 trajectories.
+                writer.write(true_traj.numpy().astype(np.float64) * scale + eol_threshold,
+                             pred.numpy().astype(np.float64) * scale + eol_threshold,
+                             tmask.numpy() > 0)
 
             m = tmask > 0
             prediction = pred[m].numpy().astype(np.float64) * scale + eol_threshold

@@ -1,11 +1,14 @@
-numpy
-scipy
-scikit-learn
-matplotlib
-pyyaml
-tqdm
-pandas
-openpyxl
-h5py
-numba
-torch
+# Python: 3.11
+# V100 使用 CUDA 12.6 构建；scikit-learn 对齐主要旧权重版本。
+--extra-index-url https://download.pytorch.org/whl/cu126
+numpy==2.4.6
+scipy==1.17.1
+scikit-learn==1.7.2
+matplotlib==3.10.9
+PyYAML==6.0.3
+tqdm==4.67.3
+pandas==3.0.3
+openpyxl==3.1.5
+h5py==3.16.0
+numba==0.65.1
+torch==2.12.0+cu126
