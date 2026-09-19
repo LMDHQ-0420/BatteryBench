@@ -14,6 +14,24 @@ from battery_data import BatteryData, CycleData, CyclingProtocol
 from preprocess.base import BasePreprocessor
 
 
+def continuous_charge_capacity(capacity, current, threshold):
+    """Join per-step cumulative charge capacities into one cycle-level curve."""
+    capacity = np.asarray(capacity, dtype=float)
+    current = np.asarray(current, dtype=float)
+    result = np.zeros(len(capacity), dtype=float)
+    offset = 0.0
+    previous = None
+    for index in np.flatnonzero(current > threshold):
+        value = capacity[index]
+        if not np.isfinite(value):
+            continue
+        if previous is not None and value < previous:
+            offset += previous
+        result[index] = offset + value
+        previous = value
+    return result.tolist()
+
+
 class CALBPreprocessor(BasePreprocessor):
     def process(self, parent_dir, **kwargs) -> List[BatteryData]:
         path = Path(parent_dir)
@@ -118,13 +136,11 @@ def organize_cell(timeseries_df, name, C, temperature):
                 discharge_capacities = df['放电容量(Ah)'].tolist()
                 charge_capacities = list(np.array(capacities) - np.array(discharge_capacities))
             else:
-                charge_capacities = []
-                for cc in list(df['充电容量(Ah)'].values):
-                    if len(charge_capacities) == 0:
-                        charge_capacities.append(cc)
-                    else:
-                        accumulate_cc = charge_capacities[-1] + cc
-                        charge_capacities.append(accumulate_cc)
+                charge_capacities = continuous_charge_capacity(
+                    df['充电容量(Ah)'].values,
+                    df['电流(A)'].values,
+                    0.01 * C,
+                )
 
             cycle_data.append(CycleData(
                 cycle_number=int(cycle_index),
