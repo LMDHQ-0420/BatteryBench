@@ -15,7 +15,7 @@ class GRU(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        L       = cfg.get('data', {}).get('charge_discharge_length', 300)
+        L       = cfg.get('data', {}).get('curve_length', 400)
         dropout = m.get('dropout', 0.1)
 
         self.gru = nn.GRU(

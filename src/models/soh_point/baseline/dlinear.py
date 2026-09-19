@@ -3,8 +3,8 @@ soh_point/dlinear.py — DLinear for SOH single-point estimation.
 Reference: Zeng et al., AAAI 2023 (individual=False: 权重按时间轴映射，跨 channel 共享，
            以 1/seq_len 均匀平均初始化 —— 论文设计的核心，而非随机初始化)。
 
-Input:  batch['cycle_curve_data'] (B, S=1, 3, L) — S 恒为 1（每样本仅当前观测圈），
-        真实时间轴是圈内曲线 L（充放电采样点，定长），3 个通道跨 channel 共享同一组权重。
+Input:  batch['cycle_curve_data'] (B, S=1, 2, L) — S 恒为 1（每样本仅当前观测圈），
+        真实时间轴是圈内曲线 L（充放电采样点，定长），2 个通道跨 channel 共享同一组权重。
 Output: (pred:(B,1), None)
 """
 
@@ -35,7 +35,7 @@ class DLinear(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        L        = cfg.get('data', {}).get('charge_discharge_length', 300)
+        L        = cfg.get('data', {}).get('curve_length', 400)
         kernel   = m.get('dlinear_kernel', 25)
         pred_len = 1
 
@@ -49,8 +49,8 @@ class DLinear(nn.Module):
             self.w_seasonal.bias.zero_()
 
     def forward(self, batch: dict):
-        x = get_curve_seq(batch)              # (B, L, 3) — 圈内曲线，L 为真实时序轴
-        xT = x.permute(0, 2, 1)               # (B, C=3, L)
+        x = get_curve_seq(batch)              # (B, L, 2) — 圈内曲线，L 为真实时序轴
+        xT = x.permute(0, 2, 1)               # (B, C=2, L)
         trend = self.decompose(xT)            # (B, C, L)
         seasonal = xT - trend
         out = self.w_trend(trend) + self.w_seasonal(seasonal)  # (B, C, pred_len)

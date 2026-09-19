@@ -1,8 +1,8 @@
 """
 soh_point/patchtst.py — PatchTST for SOH single-point estimation.
 Reference: Nie et al., ICLR 2023.
-Input:  batch['cycle_curve_data'] (B, S=1, 3, L) — S 恒为 1（每样本仅当前观测圈）。
-        沿圈内曲线 L 轴切 patch，3 个曲线通道独立 patch
+Input:  batch['cycle_curve_data'] (B, S=1, 2, L) — S 恒为 1（每样本仅当前观测圈）。
+        沿圈内曲线 L 轴切 patch，2 个曲线通道独立 patch
         （channel-independent，共享同一套 patch 投影/编码器权重，仅在输出头处混合）。
 Output: (pred:(B,1), None)
 """
@@ -17,7 +17,7 @@ class PatchTST(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        L         = cfg.get('data', {}).get('charge_discharge_length', 300)
+        L         = cfg.get('data', {}).get('curve_length', 400)
         patch_len = m.get('patchtst_patch_len', 16)
         stride    = m.get('patchtst_stride', 8)
         d_model   = m.get('patchtst_d_model', 64)
@@ -25,7 +25,7 @@ class PatchTST(nn.Module):
         n_layers  = m.get('patchtst_n_layers', 2)
         dropout   = m.get('dropout', 0.1)
 
-        self.n_channels = 3
+        self.n_channels = 2
         self.L          = L
         self.patch_len  = min(patch_len, L)
         self.stride     = stride
@@ -55,8 +55,8 @@ class PatchTST(nn.Module):
         return (x - mean) / std
 
     def forward(self, batch: dict):
-        x = get_curve_seq(batch)               # (B, L, 3)
-        xc = x.permute(0, 2, 1)                # (B, C=3, L)
+        x = get_curve_seq(batch)               # (B, L, 2)
+        xc = x.permute(0, 2, 1)                # (B, C=2, L)
         xc = self._revin_normalize(xc)         # (B, C, L)
 
         B, C, L = xc.shape

@@ -125,10 +125,9 @@ class PipelineTests(unittest.TestCase):
 
 
     def test_all_batlinet_jobs_run_last_and_training_is_exclusive(self):
-        trusted = [dict(model='gru'), dict(model='batlinet')]
         large = [dict(model='batlinet'), dict(model='mlp')]
         small = [dict(model='lstm'), dict(model='batlinet')]
-        phases = pipeline.make_phases(trusted, large, small)
+        phases = pipeline.make_phases(large, small)
         flattened = [(name, job, slots) for name, jobs, slots in phases for job in jobs]
         seen_batlinet = False
         for name, job, slots in flattened:
@@ -138,7 +137,7 @@ class PipelineTests(unittest.TestCase):
                     self.assertEqual(slots, 1)
             else:
                 self.assertFalse(seen_batlinet)
-        self.assertEqual(len(flattened), len(trusted + large + small))
+        self.assertEqual(len(flattened), len(large + small))
         self.assertEqual(len({id(job) for _, job, _ in flattened}), len(flattened))
 
 

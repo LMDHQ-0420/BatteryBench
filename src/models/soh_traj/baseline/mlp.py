@@ -16,7 +16,7 @@ class MLP(nn.Module):
         super().__init__()
         m = cfg.get('model', {})
         n_cycles = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
-        L        = cfg.get('data', {}).get('charge_discharge_length', 300)
+        L        = cfg.get('data', {}).get('curve_length', 400)
         n_future = cfg.get('data', {}).get('n_future', 5000)
         dropout  = m.get('dropout', 0.1)
 

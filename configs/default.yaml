@@ -1,5 +1,4 @@
 model:
-  n_grid: 200
   n_cycles: 100
   dropout: 0.1
 
@@ -18,11 +17,10 @@ data:
   soh_threshold: 0.80       # EOL 阈值（CALB 域覆盖为 0.90）
   eol_threshold: 0.80       # soh_traj 轨迹归一化阈值 (SOH-thr)/(1-thr)
   n_cycles: 100
-  n_grid: 200
   early_cycle: 100          # 观测窗口上限（多样本 seq_len..early_cycle）
   seq_len: 1                # 观测窗口下限（每电池从看1圈到看early_cycle圈各出一个样本）
   sp_max_cycles: 25000      # soh_point full_cycle_mode：PE buffer 上限 / PatchTST pos_emb 上限
-  charge_discharge_length: 300
+  curve_length: 400         # 每圈完整充电曲线的重采样长度
   val_ratio: 0.1
   test_ratio: 0.2
   n_splits: 3

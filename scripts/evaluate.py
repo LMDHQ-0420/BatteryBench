@@ -53,12 +53,11 @@ def _build_full_dataset(spec, cfg, dirs, exclude_pattern):
     d_cfg = cfg['data']
     return spec.dataset_cls(
         dirs,
-        n_grid=d_cfg.get('n_grid', 200),
         soh_threshold=d_cfg.get('soh_threshold', 0.80),
         eol_threshold=d_cfg.get('eol_threshold', d_cfg.get('soh_threshold', 0.80)),
         early_cycle=d_cfg.get('early_cycle', 100),
         seq_len=d_cfg.get('seq_len', 1),
-        charge_discharge_length=d_cfg.get('charge_discharge_length', 300),
+        curve_length=d_cfg.get('curve_length', 400),
         exclude_pattern=exclude_pattern,
     )
 
@@ -72,8 +71,11 @@ def _load_model(spec, cfg, checkpoint, device, train_ds=None):
             len(train_ds), min(model.n_ref, len(train_ds)), replace=False)
         samples = [train_ds[int(i)] for i in indices]
         label = {'rul': 'eol', 'soh_point': 'soh_point', 'soh_traj': 'soh_traj'}[cfg['data']['task']]
-        model.set_reference(torch.stack([s['Q'] for s in samples]).to(device),
-                            torch.stack([s[label] for s in samples]).to(device))
+        model.set_reference(
+            torch.stack([sample['cycle_curve_data'] for sample in samples]).to(device),
+            torch.stack([sample[label] for sample in samples]).to(device),
+            torch.stack([sample['curve_attn_mask'] for sample in samples]).to(device),
+        )
     return model
 
 
@@ -183,11 +185,11 @@ def _eval_four_level(model_name, task, spec, cfg, batch_size, seed_dir, device):
         files = [file for file in files
                  if fnmatch.fnmatch(os.path.basename(file), test_set.get('pattern', '*.pkl'))]
         test_ds = spec.dataset_cls(
-            directory, pkl_files=files, n_grid=data.get('n_grid', 200),
+            directory, pkl_files=files,
             soh_threshold=data.get('soh_threshold', 0.80),
             eol_threshold=data.get('eol_threshold', data.get('soh_threshold', 0.80)),
             early_cycle=data.get('early_cycle', 100), seq_len=data.get('seq_len', 1),
-            charge_discharge_length=data.get('charge_discharge_length', 300))
+            curve_length=data.get('curve_length', 400))
         name = os.path.basename(directory)
         counts = {'dataset': name, 'level': level, 'n_samples': len(test_ds),
                   'n_batteries': len({bidx for bidx, _ in test_ds._samples})}
@@ -236,6 +238,7 @@ def main():
 
     cfg  = load_config(args.config, DOMAIN_CFG[args.domain])
     task = args.task or cfg.get('data', {}).get('task', 'rul')
+    cfg['data']['task'] = task
     save_dir = args.save_dir or os.path.join('results', args.domain, task)
 
     task_models = ALL_MODELS[task]

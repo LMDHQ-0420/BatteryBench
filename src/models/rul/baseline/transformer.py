@@ -17,7 +17,7 @@ class Transformer(nn.Module):
         super().__init__()
         m = cfg.get('model', {})
         S        = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
-        L        = cfg.get('data', {}).get('charge_discharge_length', 300)
+        L        = cfg.get('data', {}).get('curve_length', 400)
         d_model  = m.get('transformer_d_model', 64)
         n_heads  = m.get('transformer_n_heads', 4)
         n_layers = m.get('transformer_n_layers', 2)

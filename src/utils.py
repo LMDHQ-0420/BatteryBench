@@ -1,137 +1,48 @@
-"""
-utils.py — 数据处理工具函数
-"""
+"""Shared battery data utilities."""
+
+from pathlib import Path
+from typing import Optional
+import pickle
 
 import numpy as np
-import pickle
-from pathlib import Path
-from typing import Optional, Tuple
 
 
-# ── Q(V) 插值 ──────────────────────────────────────────────────────────────
-
-def get_discharge_qv(
-    cycle: dict,
-    v_min: float,
-    v_max: float,
-    n_grid: int = 200,
-) -> Optional[np.ndarray]:
-    """
-    从单圈原始时序插值得到 Q(V) 在 [v_max→v_min] 均匀网格上的值。
-    返回 shape (n_grid,)，或 None（数据不足）。
-    """
-    v_raw = np.asarray(cycle.get('voltage_in_V', []), dtype=float)
-    q_raw = np.asarray(cycle.get('discharge_capacity_in_Ah', []), dtype=float)
-
-    if len(v_raw) < 10:
-        return None
-
-    # 过滤到 [v_min, v_max]
-    mask = (v_raw >= v_min) & (v_raw <= v_max)
-    v_f = v_raw[mask]
-    q_f = q_raw[mask]
-
-    if len(v_f) < 10:
-        return None
-
-    # 按电压降序排列
-    sort_idx = np.argsort(-v_f)
-    v_s = v_f[sort_idx]
-    q_s = q_f[sort_idx]
-
-    # 去重（相同 V 取均值）
-    v_u, inv = np.unique(v_s, return_inverse=True)
-    q_u = np.zeros_like(v_u)
-    counts = np.zeros_like(v_u)
-    for i, idx in enumerate(inv):
-        q_u[idx] += q_s[i]
-        counts[idx] += 1
-    q_u /= counts
-
-    if len(v_u) < 10:
-        return None
-
-    # 插值到均匀网格（v_max → v_min）
-    V_grid = np.linspace(v_max, v_min, n_grid)
-    try:
-        Qdlin = np.interp(V_grid, v_u[::-1], q_u[::-1])
-    except Exception:
-        return None
-
-    return Qdlin
+def load_pkl(path: str) -> dict:
+    with open(path, 'rb') as file:
+        return pickle.load(file)
 
 
-def get_matr_qv(cycle: dict, n_grid: int = 200) -> Optional[np.ndarray]:
-    """
-    MATR 专用：从 Qdlin（1000点，V=3.5→2.0）重采样到 n_grid 点。
-    """
-    q = cycle.get('Qdlin')
-    if q is None:
-        return None
-    q = np.asarray(q, dtype=float)
-    if len(q) < 10:
-        return None
-    # 原始 1000 点网格
-    V_orig = np.linspace(3.5, 2.0, len(q))
-    V_new = np.linspace(3.5, 2.0, n_grid)
-    return np.interp(V_new, V_orig[::-1], q[::-1])
+def scan_pkl_dir(pkl_dir: str):
+    return sorted(Path(pkl_dir).glob('*.pkl'))
 
-
-def is_matr_cell(cell: dict) -> bool:
-    """判断是否为 MATR 电池（有 Qdlin 字段且第一圈非 None）。"""
-    cycle_data = cell.get('cycle_data', [])
-    if not cycle_data:
-        return False
-    return cycle_data[0].get('Qdlin') is not None
-
-
-# ── SOH / RUL ──────────────────────────────────────────────────────────────
 
 def get_soc_interval(cell: dict) -> float:
-    """
-    读取充放电 SOC 区间宽度，用于 SOH 归一化（对齐 BatteryLife）。
-    SOH = max(Qd) / nom / soc_interval。区间为 0（满充满放）时返回 1.0。
-    """
     soc = cell.get('SOC_interval')
     if not soc or len(soc) < 2:
         return 1.0
-    iv = float(soc[1]) - float(soc[0])
-    return iv if abs(iv) > 1e-6 else 1.0
+    interval = float(soc[1]) - float(soc[0])
+    return interval if abs(interval) > 1e-6 else 1.0
 
 
 def compute_soh_series(cell: dict) -> np.ndarray:
-    """
-    计算全寿命 SOH 序列，shape (n_cycles,)。
-    SOH_i = max(Q_discharge_i) / Q_nominal / SOC_interval  （对齐 BatteryLife）
-
-    SOC_interval 用于修正部分区间充放电的数据集（如 ISU-ILCC，区间 0.16~0.96），
-    满充满放数据集其值为 1.0，不受影响。
-    """
-    # CALB 等：pkl 只含早期曲线，全寿命 SOH 由汇总表注入 full_soh_series
-    # （见 src/preprocess/augment_calb_soh.py），优先使用。
+    """Compute labels from discharge capacity. Capacity never enters model inputs."""
     full = cell.get('full_soh_series')
     if full is not None and len(full) > 0:
         return np.clip(np.asarray(full, dtype=float), 0.0, 1.0)
 
-    q_nom = cell.get('nominal_capacity_in_Ah')
-    cycle_data = cell['cycle_data']
-    soc_interval = get_soc_interval(cell)
+    cycles = cell['cycle_data']
+    nominal = cell.get('nominal_capacity_in_Ah')
+    if nominal is None or nominal <= 0:
+        first = cycles[0].get('discharge_capacity_in_Ah', [])
+        nominal = float(max(first)) if len(first) else 1.0
 
-    # 若 nominal_capacity 为 None，用第1圈最大放电容量
-    if q_nom is None or q_nom <= 0:
-        q0 = cycle_data[0].get('discharge_capacity_in_Ah', [])
-        q_nom = float(max(q0)) if q0 else 1.0
-
-    soh_list = []
-    for cyc in cycle_data:
-        q_dis = cyc.get('discharge_capacity_in_Ah', [])
-        if q_dis:
-            q_i = float(max(q_dis))
-        else:
-            q_i = 0.0
-        soh_list.append(np.clip(q_i / q_nom / soc_interval, 0.0, 1.0))
-
-    return np.array(soh_list, dtype=float)
+    interval = get_soc_interval(cell)
+    soh = []
+    for cycle in cycles:
+        capacity = cycle.get('discharge_capacity_in_Ah', [])
+        value = float(max(capacity)) if len(capacity) else 0.0
+        soh.append(np.clip(value / nominal / interval, 0.0, 1.0))
+    return np.asarray(soh, dtype=float)
 
 
 def compute_eol(
@@ -139,207 +50,71 @@ def compute_eol(
     threshold: float = 0.80,
     fallback_total: bool = False,
 ) -> Optional[int]:
-    """
-    计算 EOL（总寿命，1-based 圈数）= 首次 SOH < threshold 的圈。
-
-    对齐 BatteryLife：默认 fallback_total=False，即未跌破阈值的电池
-    （实验未跑到退化终点）直接排除，返回 None，避免噪声标签。
-    """
-    below = np.where(soh_series < threshold)[0]
-    if len(below) > 0:
-        return int(below[0]) + 1  # 1-based
-    if fallback_total:
-        return len(soh_series)
-    return None
+    below = np.flatnonzero(soh_series < threshold)
+    if len(below):
+        return int(below[0]) + 1
+    return len(soh_series) if fallback_total else None
 
 
-def compute_rul(
-    soh_series: np.ndarray,
-    threshold: float = 0.80,
-    obs_cycle: int = 100,
-    fallback_total: bool = False,
-) -> Optional[int]:
-    """
-    计算 RUL = t_EOL - obs_cycle。
-
-    t_EOL = compute_eol(...)（首次 SOH < threshold 的圈）。
-    对齐 BatteryLife：默认 fallback_total=False，未跌破阈值的电池排除。
-    若 EOL 未定义或 RUL <= 0 返回 None。
-    """
-    t_eol = compute_eol(soh_series, threshold=threshold, fallback_total=fallback_total)
-    if t_eol is None:
-        return None
-    rul = t_eol - obs_cycle
-    if rul <= 0:
-        return None
-    return rul
+def _resample(values: np.ndarray, length: int) -> np.ndarray:
+    values = np.asarray(values, dtype=float)
+    finite = np.isfinite(values)
+    if finite.sum() < 2:
+        return np.zeros(length, dtype=np.float32)
+    values = values[finite]
+    source = np.linspace(0.0, 1.0, len(values))
+    target = np.linspace(0.0, 1.0, length)
+    return np.interp(target, source, values).astype(np.float32)
 
 
-# ── Q 矩阵构建 ─────────────────────────────────────────────────────────────
-
-def build_q_matrix(
-    cell: dict,
-    n_cycles: int = 100,
-    n_grid: int = 200,
-) -> Optional[np.ndarray]:
-    """
-    构建早期观测矩阵 Q ∈ R^{n_cycles × n_grid}，归一化到 Q_nom。
-    若有效圈数 < n_cycles * 0.8 返回 None。
-    """
-    cycle_data = cell['cycle_data']
-    v_min = cell.get('min_voltage_limit_in_V', 2.0)
-    v_max = cell.get('max_voltage_limit_in_V', 3.5)
-    use_matr = is_matr_cell(cell)
-    nom = cell.get('nominal_capacity_in_Ah')
-
-    Q = np.zeros((n_cycles, n_grid), dtype=float)
-    valid_count = 0
-
-    for i in range(n_cycles):
-        if i >= len(cycle_data):
-            break
-        cyc = cycle_data[i]
-        if use_matr:
-            qv = get_matr_qv(cyc, n_grid=n_grid)
-        else:
-            qv = get_discharge_qv(cyc, v_min, v_max, n_grid=n_grid)
-
-        if qv is not None:
-            Q[i] = qv
-            valid_count += 1
-
-    if valid_count < n_cycles * 0.8:
-        return None
-
-    if nom and nom > 0:
-        Q = Q / nom
-
-    return Q
-
-
-def compute_delta_q(
-    Q: np.ndarray,
-    early_cycle: int = 10,
-    late_cycle: int = 100,
-) -> np.ndarray:
-    """
-    ΔQ = Q[late_cycle-1] - Q[early_cycle-1]，shape (n_grid,)。
-    """
-    return Q[late_cycle - 1] - Q[early_cycle - 1]
-
-
-# ── pkl 加载 ────────────────────────────────────────────────────────────────
-
-def load_pkl(path: str) -> dict:
-    with open(path, 'rb') as f:
-        return pickle.load(f)
-
-
-def scan_pkl_dir(pkl_dir: str):
-    """返回目录下所有 .pkl 文件路径列表，排序。"""
-    return sorted(Path(pkl_dir).glob('*.pkl'))
-
-
-# ── 充放电曲线提取 ──────────────────────────────────────────────────────────
-
-def _resample(arr: np.ndarray, n: int) -> np.ndarray:
-    """线性插值重采样到 n 点。"""
-    if len(arr) == 0:
-        return np.zeros(n, dtype=float)
-    x_old = np.linspace(0, 1, len(arr))
-    x_new = np.linspace(0, 1, n)
-    return np.interp(x_new, x_old, arr)
-
-
-def get_charge_discharge_curves(
+def get_charge_curve(
     cycle: dict,
     nominal_capacity: float,
-    charge_discharge_length: int = 300,
-) -> np.ndarray:
-    """
-    从单圈原始时序提取充放电曲线，归一化并重采样。
+    curve_length: int = 400,
+    include_capacity: bool = True,
+) -> Optional[np.ndarray]:
+    """Return a complete positive-current charge curve as V/I[/Q], resampled together."""
+    voltage = np.asarray(cycle.get('voltage_in_V', []), dtype=float)
+    current = np.asarray(cycle.get('current_in_A', []), dtype=float)
+    charge = np.asarray(cycle.get('charge_capacity_in_Ah', []), dtype=float)
+    size = min(len(voltage), len(current), len(charge))
+    if size < 5:
+        return None
 
-    返回 shape (3, charge_discharge_length)：
-        row 0: 电压  V / max(V)
-        row 1: 电流  I / Q_nom  (C-rate)
-        row 2: 容量  Q / Q_nom
+    nominal = float(nominal_capacity) if nominal_capacity and nominal_capacity > 0 else 1.0
+    voltage, current, charge = voltage[:size], current[:size], charge[:size]
+    mask = (current > 0.01 * nominal) & np.isfinite(voltage) & np.isfinite(current) & np.isfinite(charge)
+    if mask.sum() < 5:
+        return None
 
-    charge 占前 L//2 点，discharge 占后 L//2 点。
-    若某段数据不足则该段填 0。
-    """
-    L = charge_discharge_length
-    half = L // 2
+    voltage = _resample(voltage[mask], curve_length)
+    current = _resample(current[mask], curve_length)
+    charge = _resample(charge[mask], curve_length)
+    max_voltage = float(np.max(voltage))
+    if max_voltage > 1e-6:
+        voltage /= max_voltage
 
-    v_raw = np.asarray(cycle.get('voltage_in_V', []), dtype=float)
-    i_raw = np.asarray(cycle.get('current_in_A', []), dtype=float)
-    qc_raw = np.asarray(cycle.get('charge_capacity_in_Ah', []), dtype=float)
-    qd_raw = np.asarray(cycle.get('discharge_capacity_in_Ah', []), dtype=float)
-
-    nom = nominal_capacity if (nominal_capacity and nominal_capacity > 0) else 1.0
-
-    # 分离充电段（电流 > 0）和放电段（电流 < 0）
-    charge_mask = i_raw > 0.01 * nom
-    discharge_mask = i_raw < -0.01 * nom
-
-    def _extract(mask, q_arr):
-        if mask.sum() < 5:
-            return np.zeros(half), np.zeros(half), np.zeros(half)
-        v_seg = _resample(np.nan_to_num(v_raw[mask]), half)
-        i_seg = _resample(np.nan_to_num(i_raw[mask]), half)
-        q_seg = _resample(np.nan_to_num(q_arr[mask]), half)
-        return v_seg, i_seg, q_seg
-
-    v_c, i_c, q_c = _extract(charge_mask, qc_raw)
-    v_d, i_d, q_d = _extract(discharge_mask, qd_raw)
-
-    v_all = np.concatenate([v_c, v_d])   # (L,)
-    i_all = np.concatenate([i_c, i_d])
-    q_all = np.concatenate([q_c, q_d])
-
-    max_v = v_all.max()
-    v_norm = v_all / max_v if max_v > 1e-6 else v_all
-    i_norm = i_all / nom
-    q_norm = q_all / nom
-
-    return np.stack([v_norm, i_norm, q_norm], axis=0).astype(np.float32)  # (3, L)
+    channels = [voltage, current / nominal]
+    if include_capacity:
+        channels.append(charge / nominal)
+    return np.stack(channels).astype(np.float32)
 
 
-def build_curves_matrix(
+def build_charge_curve_tensor(
     cell: dict,
-    n_cycles: int = 100,
-    charge_discharge_length: int = 300,
-) -> np.ndarray:
-    """
-    构建充放电曲线矩阵 shape (n_cycles, 3, charge_discharge_length)。
-    不足 n_cycles 的圈用 zeros 填充。
-    """
-    nom = cell.get('nominal_capacity_in_Ah') or 1.0
-    cycle_data = cell['cycle_data']
-    curves = np.zeros((n_cycles, 3, charge_discharge_length), dtype=np.float32)
-    for i in range(min(n_cycles, len(cycle_data))):
-        curves[i] = get_charge_discharge_curves(
-            cycle_data[i], nom, charge_discharge_length
-        )
-    return curves
-
-
-def build_cycle_curve_tensor(
-    cell: dict,
-    early_cycle: int = 100,
-    charge_discharge_length: int = 300,
-    num_var: int = 3,
-) -> tuple:
-    """
-    构建早期充放电曲线张量，供「多样本 + attention mask」dataset 使用。
-
-    返回:
-        curves      : (early_cycle, num_var, L)  前 early_cycle 圈曲线，不足补零
-        valid_cycles: int                        实际有效圈数 (min(early_cycle, 总圈数))
-
-    对齐 BatteryLife：固定 early_cycle 长度，样本按观测窗口用 curve_attn_mask 裁剪。
-    """
-    cycle_data = cell.get('cycle_data', [])
-    valid_cycles = min(early_cycle, len(cycle_data))
-    curves = build_curves_matrix(cell, n_cycles=early_cycle,
-                                 charge_discharge_length=charge_discharge_length)
+    n_cycles: int,
+    curve_length: int = 400,
+    include_capacity: bool = True,
+) -> tuple[np.ndarray, int]:
+    """Build consecutive charge-only curves; stop at the first unusable cycle."""
+    channels = 3 if include_capacity else 2
+    curves = np.zeros((n_cycles, channels, curve_length), dtype=np.float32)
+    nominal = cell.get('nominal_capacity_in_Ah') or 1.0
+    valid_cycles = 0
+    for index, cycle in enumerate(cell.get('cycle_data', [])[:n_cycles]):
+        curve = get_charge_curve(cycle, nominal, curve_length, include_capacity)
+        if curve is None:
+            break
+        curves[index] = curve
+        valid_cycles += 1
     return curves, valid_cycles

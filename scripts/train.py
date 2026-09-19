@@ -41,12 +41,11 @@ def _build_full_dataset(spec, cfg, dirs, exclude_pattern):
     d_cfg = cfg['data']
     return spec.dataset_cls(
         dirs,
-        n_grid=d_cfg.get('n_grid', 200),
         soh_threshold=d_cfg.get('soh_threshold', 0.80),
         eol_threshold=d_cfg.get('eol_threshold', d_cfg.get('soh_threshold', 0.80)),
         early_cycle=d_cfg.get('early_cycle', 100),
         seq_len=d_cfg.get('seq_len', 1),
-        charge_discharge_length=d_cfg.get('charge_discharge_length', 300),
+        curve_length=d_cfg.get('curve_length', 400),
         exclude_pattern=exclude_pattern,
         use_log_rul=(d_cfg.get('task') == 'rul' and cfg['train'].get('use_log_rul', False)),
     )
@@ -164,6 +163,7 @@ def main():
     task = args.task or cfg.get('data', {}).get('task', 'rul')
     if task not in ALL_TASKS:
         raise ValueError(f"Unknown task '{task}'. Choose from {sorted(ALL_TASKS)}")
+    cfg['data']['task'] = task
 
     save_dir = args.save_dir or os.path.join('results', args.domain, task)
     os.makedirs(save_dir, exist_ok=True)

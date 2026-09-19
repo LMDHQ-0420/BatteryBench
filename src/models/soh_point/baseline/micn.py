@@ -1,8 +1,8 @@
 """
 soh_point/micn.py — MICN for SOH single-point estimation.
 Reference: Wang et al., AAAI 2023.
-Input:  batch['cycle_curve_data'] (B, S=1, 3, L) — S 恒为 1（每样本仅当前观测圈），
-        真实时序轴是圈内曲线 L，逐时间步的 3 通道向量作为该步输入。
+Input:  batch['cycle_curve_data'] (B, S=1, 2, L) — S 恒为 1（每样本仅当前观测圈），
+        真实时序轴是圈内曲线 L，逐时间步的 2 通道向量作为该步输入。
 Output: (pred:(B,1), None)
 """
 
@@ -87,8 +87,8 @@ class MICN(nn.Module):
 
         decomp_kernels = [k if k % 2 == 1 else k + 1 for k in scales]
 
-        self.input_proj = nn.Linear(3, d_model)
-        self.trend_proj = nn.Linear(3, d_model)
+        self.input_proj = nn.Linear(2, d_model)
+        self.trend_proj = nn.Linear(2, d_model)
         self.decomp_multi = _SeriesDecompMulti(decomp_kernels)
         self.blocks = nn.ModuleList([_MICBlock(d_model, k, dropout) for k in scales])
         self.merge = nn.Conv2d(d_model, d_model, kernel_size=(len(scales), 1))
@@ -103,8 +103,8 @@ class MICN(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = get_curve_seq(batch)             # (B, L, 3)
-        seasonal, trend = self.decomp_multi(x)             # (B, L, 3) each
+        x = get_curve_seq(batch)             # (B, L, 2)
+        seasonal, trend = self.decomp_multi(x)             # (B, L, 2) each
 
         h = self.input_proj(seasonal)                      # (B, L, d)
         multi = [block(h) for block in self.blocks]         # list of (B, L, d)

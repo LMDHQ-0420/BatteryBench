@@ -18,7 +18,7 @@ class PatchTST(nn.Module):
         super().__init__()
         m = cfg.get('model', {})
         S         = m.get('n_cycles', cfg.get('data', {}).get('early_cycle', 100))
-        L         = cfg.get('data', {}).get('charge_discharge_length', 300)
+        L         = cfg.get('data', {}).get('curve_length', 400)
         patch_len = m.get('patchtst_patch_len', 16)
         stride    = m.get('patchtst_stride', 8)
         n_future  = cfg.get('data', {}).get('n_future', 5000)

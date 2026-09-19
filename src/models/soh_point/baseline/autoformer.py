@@ -1,8 +1,8 @@
 """
 soh_point/autoformer.py — Autoformer for SOH single-point estimation.
 Reference: Wu et al., NeurIPS 2021.
-Input:  batch['cycle_curve_data'] (B, S=1, 3, L) — S 恒为 1（每样本仅当前观测圈），
-        真实时序轴是圈内曲线 L（充放电采样点），3 为该圈的多变量通道。
+Input:  batch['cycle_curve_data'] (B, S=1, 2, L) — S 恒为 1（每样本仅当前观测圈），
+        真实时序轴是圈内曲线 L（充放电采样点），2 为该圈的多变量通道。
 Output: (pred:(B,1), None)
 """
 
@@ -114,14 +114,14 @@ class Autoformer(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        L        = cfg.get('data', {}).get('charge_discharge_length', 300)
+        L        = cfg.get('data', {}).get('curve_length', 400)
         d_model  = m.get('autoformer_d_model', 64)
         n_heads  = m.get('autoformer_n_heads', 4)
         n_layers = m.get('autoformer_n_layers', 2)
         kernel   = m.get('autoformer_kernel', 13)
         dropout  = m.get('dropout', 0.1)
 
-        self.input_proj = nn.Linear(3, d_model)
+        self.input_proj = nn.Linear(2, d_model)
         pe = torch.zeros(L, d_model)
         pos = torch.arange(L).unsqueeze(1).float()
         div = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
@@ -139,7 +139,7 @@ class Autoformer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = get_curve_seq(batch)              # (B, L, 3) — 圈内曲线，L 为真实时序轴
+        x = get_curve_seq(batch)              # (B, L, 2) — 圈内曲线，L 为真实时序轴
         h = self.input_proj(x)               # (B, L, d)
         h = h + self.pe[:, :h.shape[1], :]
         for layer in self.layers:

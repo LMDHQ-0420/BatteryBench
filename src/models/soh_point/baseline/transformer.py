@@ -1,7 +1,7 @@
 """
 soh_point/transformer.py — Vanilla Transformer for SOH single-point estimation.
-Input:  batch['cycle_curve_data'] (B, S=1, 3, L) — S 恒为 1（每样本仅当前观测圈），
-        真实时序轴是圈内曲线 L，逐时间步的 3 通道向量作为该步的输入 token。
+Input:  batch['cycle_curve_data'] (B, S=1, 2, L) — S 恒为 1（每样本仅当前观测圈），
+        真实时序轴是圈内曲线 L，逐时间步的 2 通道向量作为该步的输入 token。
 Output: (pred:(B,1), None)
 """
 
@@ -16,13 +16,13 @@ class Transformer(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        L        = cfg.get('data', {}).get('charge_discharge_length', 300)
+        L        = cfg.get('data', {}).get('curve_length', 400)
         d_model  = m.get('transformer_d_model', 64)
         n_heads  = m.get('transformer_n_heads', 4)
         n_layers = m.get('transformer_n_layers', 2)
         dropout  = m.get('dropout', 0.1)
 
-        self.input_proj = nn.Linear(3, d_model)
+        self.input_proj = nn.Linear(2, d_model)
 
         pe = torch.zeros(L, d_model)
         pos = torch.arange(L).unsqueeze(1).float()
@@ -43,7 +43,7 @@ class Transformer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = get_curve_seq(batch)              # (B, L, 3)
+        x = get_curve_seq(batch)              # (B, L, 2)
         h = self.input_proj(x)               # (B, L, d)
         h = h + self.pe[:, :h.shape[1], :]
         h = self.encoder(h)

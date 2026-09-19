@@ -2,7 +2,7 @@
 train/rul/train_severson.py — Severson ElasticNet baseline for RUL/BLP.
 Reference: Severson et al., Nature Energy 2019.
 
-特征: ΔQ(V) = Q[最后观测圈] - Q[第10圈] 的 variance/min/mean（对齐原文 ΔQ 特征）。
+特征：从公开的历史充电 V/I/Q 曲线提取统计量。
 标签: EOL（绝对总寿命）。
 """
 
@@ -10,28 +10,17 @@ import os
 import pickle
 import numpy as np
 from src.evaluate.output import PredictionWriter
+from src.models.adapted import curve_features
 from sklearn.linear_model import ElasticNetCV
 from sklearn.preprocessing import StandardScaler
 
 
-def _delta_q_feature(Q: np.ndarray, useable: int) -> list:
-    """Q: (S, N)；ΔQ = Q[useable-1] - Q[早期圈]。早期圈取 min(9, useable-1)。"""
-    late = Q[useable - 1]
-    early_idx = min(9, useable - 1)
-    early = Q[early_idx]
-    dq = late - early
-    return [float(np.var(dq)), float(np.min(dq)), float(np.mean(dq))]
-
-
 def _extract_features(dataset) -> np.ndarray:
-    feats = []
-    for i in range(len(dataset)):
-        s = dataset[i]
-        Q = s['Q'].numpy()                       # (S, N)
-        useable = int(s['useable_cycle'])
-        feats.append(_delta_q_feature(Q, useable))
-    return np.array(feats, dtype=float)
-
+    return np.stack([
+        curve_features(dataset[index]['cycle_curve_data'].numpy(),
+                       int(dataset[index]['useable_cycle']))
+        for index in range(len(dataset))
+    ])
 
 def _get_labels(dataset) -> np.ndarray:
     # EOL 绝对值

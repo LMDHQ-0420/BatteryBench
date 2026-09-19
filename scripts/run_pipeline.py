@@ -86,8 +86,6 @@ def prediction_complete(directory, job, n_samples, n_future):
             required += ['true_eol', 'predicted_eol']
         elif job['task'] == 'soh_point':
             required += ['true_soh', 'predicted_soh']
-        elif job['model'] == 'severson':
-            required += ['true_future_mean_soh', 'predicted_future_mean_soh']
         if header != required:
             return False
         count = 0
@@ -97,7 +95,7 @@ def prediction_complete(directory, job, n_samples, n_future):
             count += 1
         if count != n_samples:
             return False
-    if job['task'] == 'soh_traj' and job['model'] != 'severson':
+    if job['task'] == 'soh_traj':
         with zipfile.ZipFile(directory / 'trajectories.npz') as archive:
             for name in ('truth', 'prediction', 'mask'):
                 with archive.open(name + '.npy') as stream:
@@ -224,7 +222,7 @@ def run_job(job, args, gpu, phase, expected_sets, n_future):
                 trained = state.get('checkpoint_fingerprint') == fingerprint(job, args)
             except ValueError:
                 pass
-        if not phase.startswith('evaluate_trusted') and not trained:
+        if not trained:
             state = {'training_complete': False}
             say(f'START train GPU={gpu} {name}')
             write_json(statefile, {**state, 'job': job, 'status': 'training'})
@@ -232,8 +230,6 @@ def run_job(job, args, gpu, phase, expected_sets, n_future):
             (seed_dir(job, args) / 'results.json').unlink(missing_ok=True)
             command(job, args, gpu, 'train', logfile)
             state = {'training_complete': True, 'checkpoint_fingerprint': fingerprint(job, args)}
-        if phase.startswith('evaluate_trusted'):
-            fingerprint(job, args)
         write_json(statefile, {**state, 'job': job, 'status': 'evaluating'})
         say(f'START evaluate GPU={gpu} {name}')
         command(job, args, gpu, 'evaluate', logfile)
@@ -276,17 +272,14 @@ def run_phase(jobs, args, phase, slots_per_gpu, expected_sets, n_future):
 
 
 
-def make_phases(trusted, large, small):
-    # 所有 BatLiNet 任务都排在其他模型之后；训练始终独占单卡。
-    trusted_other = [job for job in trusted if job['model'] != 'batlinet']
-    trusted_batlinet = [job for job in trusted if job['model'] == 'batlinet']
+def make_phases(large, small):
+    # BatLiNet 训练显存占用大，排在全部普通模型之后并独占单卡。
     large_other = [job for job in large if job['model'] != 'batlinet']
     small_other = [job for job in small if job['model'] != 'batlinet']
-    train_batlinet = [job for job in large + small if job['model'] == 'batlinet']
-    return [('evaluate_trusted', trusted_other, 6),
-            ('train_small', small_other, 4), ('train_large', large_other, 1),
-            ('evaluate_trusted_batlinet', trusted_batlinet, 6),
-            ('train_batlinet', train_batlinet, 1)]
+    batlinet = [job for job in large + small if job['model'] == 'batlinet']
+    return [('train_small', small_other, 4),
+            ('train_large', large_other, 1),
+            ('train_batlinet', batlinet, 1)]
 
 
 def main():
@@ -296,7 +289,6 @@ def main():
                         help='独占 GPU 的模型名，或 task/model，例如 soh_traj/mlp')
     parser.add_argument('--job-threads', type=int, default=3)
     parser.add_argument('--config', type=Path, default=ROOT / 'configs/default.yaml')
-    parser.add_argument('--trust-manifest', type=Path, default=ROOT / 'configs/trusted_experiments.json')
     parser.add_argument('--results-dir', type=Path, default=ROOT / 'results')
     parser.add_argument('--state-dir', type=Path, default=ROOT / 'pipeline_state')
     parser.add_argument('--log-dir', type=Path,
@@ -307,49 +299,45 @@ def main():
         parser.error('GPU 0 必须保留空闲；GPU 编号不能重复')
     if args.job_threads < 1:
         parser.error('--job-threads 必须为正整数')
-    for name in ('config', 'trust_manifest', 'results_dir', 'state_dir', 'log_dir'):
+    for name in ('config', 'results_dir', 'state_dir', 'log_dir'):
         setattr(args, name, getattr(args, name).resolve())
     import yaml
     config = yaml.safe_load(args.config.read_text())
     n_future = config['data'].get('n_future', 5000)
     four = yaml.safe_load((ROOT / 'configs/domains/four_level.yaml').read_text())
     expected_sets = {(x['level'], Path(x['dir']).name) for x in four['data']['test_sets']}
-    manifest = read_json(args.trust_manifest)
-    jobs = manifest['experiments']
-    identities = [job_id(x) for x in jobs]
-    if len(set(identities)) != len(identities):
-        parser.error('可信清单含重复实验')
-    # 对照注册表确认清单覆盖全部组合，不随权重是否存在扩大可信范围。
+    # 从注册表生成全部实验。输入定义改变后，旧权重不再进入可信恢复路径。
     registry = ast.parse((ROOT / 'src/models/registry.py').read_text())
     node = next(x for x in registry.body if isinstance(x, ast.AnnAssign)
                 and isinstance(x.target, ast.Name) and x.target.id == '_REGISTRY')
     models = {ast.literal_eval(k): {ast.literal_eval(m) for m in v.keys}
               for k, v in zip(node.value.keys, node.value.values)}
-    universe = {(d, t, m, s) for d in ('li_ion', 'calb', 'na_ion', 'zn_ion', 'four_level')
-                for t in models for m in models[t] for s in (1, 7, 42, 123, 2024)}
-    if {(x['domain'], x['task'], x['model'], x['seed']) for x in jobs} != universe:
-        parser.error('可信清单未覆盖全部实验组合')
+    jobs = [
+        {'domain': domain, 'task': task, 'model': model, 'seed': seed}
+        for domain in ('li_ion', 'calb', 'na_ion', 'zn_ion', 'four_level')
+        for task in sorted(models)
+        for model in sorted(models[task])
+        for seed in (1, 7, 42, 123, 2024)
+    ]
     valid_large = {m for names in models.values() for m in names} | {
         f'{t}/{m}' for t, names in models.items() for m in names}
     if not set(args.large_models) <= valid_large:
         parser.error('存在未注册的 --large-models 名称')
-    trusted, large, small, finished = [], [], [], []
+    large, small, finished = [], [], []
     for job in jobs:
         if result_complete(job, args, expected_sets, n_future):
             finished.append(job)
-        elif job['trusted']:
-            fingerprint(job, args)  # 缺少可信权重时明确停止，避免意外重训。
-            trusted.append(job)
-        elif job['model'] == 'batlinet' or job['model'] in args.large_models or f"{job['task']}/{job['model']}" in args.large_models:
+        elif (job['model'] == 'batlinet' or job['model'] in args.large_models
+              or f"{job['task']}/{job['model']}" in args.large_models):
             large.append(job)
         else:
             small.append(job)
-    say(f'总计 {len(jobs)}；新格式已完成 {len(finished)}；可信待测评 {len(trusted)}；'
+    say(f'总计 {len(jobs)}；新格式已完成 {len(finished)}；'
         f'待训大模型 {len(large)}；待训其余模型 {len(small)}')
     say(f'GPU 0 保留；测评 {len(args.gpus)*6} 槽；'
         f'大模型训练 {len(args.gpus)} 槽；其余训练 {len(args.gpus)*4} 槽；'
         f'大模型={args.large_models}')
-    phases = make_phases(trusted, large, small)
+    phases = make_phases(large, small)
     for phase, queue, slots in phases:
         if queue:
             say(f'计划 {phase}: {len(queue)} 个实验，每卡 {slots} 槽')
@@ -365,7 +353,7 @@ def main():
         if not torch.cuda.is_available() or max(args.gpus) >= torch.cuda.device_count():
             parser.error('所需 GPU 不可用；请在 zw@BatteryBench 环境启动')
         args.log_dir.mkdir(parents=True, exist_ok=True)
-        write_json(args.log_dir / 'plan.json', {'evaluate_trusted': trusted,
+        write_json(args.log_dir / 'plan.json', {
                    'train_large': large, 'train_small': small, 'already_complete': finished,
                    'phases': [{'name': name, 'jobs': queue, 'slots_per_gpu': slots}
                               for name, queue, slots in phases]})

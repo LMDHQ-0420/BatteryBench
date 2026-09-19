@@ -1,6 +1,6 @@
 """
 train/soh_point/train_severson.py — Severson ElasticNet for SOH point estimation.
-特征: 当前观测圈 Q(V) 曲线本身的 variance/min/mean（单圈输入，无法再取跨圈 ΔQ）。
+特征：仅从当前循环的充电 V/I 曲线提取统计量。
 标签: 当前观测圈的 SOH。
 """
 
@@ -8,22 +8,17 @@ import os
 import pickle
 import numpy as np
 from src.evaluate.output import PredictionWriter
+from src.models.adapted import curve_features
 from sklearn.linear_model import ElasticNetCV
 from sklearn.preprocessing import StandardScaler
 
 
-def _q_feature(Q: np.ndarray) -> list:
-    q = Q[0]  # (1, n_grid) -> (n_grid,)，当前这一圈的 Q(V) 曲线
-    return [float(np.var(q)), float(np.min(q)), float(np.mean(q))]
-
-
 def _extract_features(dataset) -> np.ndarray:
-    feats = []
-    for i in range(len(dataset)):
-        s = dataset[i]
-        feats.append(_q_feature(s['Q'].numpy()))
-    return np.array(feats, dtype=float)
-
+    return np.stack([
+        curve_features(dataset[index]['cycle_curve_data'].numpy(),
+                       int(dataset[index]['useable_cycle']))
+        for index in range(len(dataset))
+    ])
 
 def _get_targets(dataset) -> np.ndarray:
     return np.array([float(dataset[i]['soh_point'].item()) for i in range(len(dataset))])

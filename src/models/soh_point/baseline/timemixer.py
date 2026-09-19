@@ -1,8 +1,8 @@
 """
 soh_point/timemixer.py — TimeMixer for SOH single-point estimation.
 Reference: Wang et al., ICLR 2024 (simplified adaptation).
-Input:  batch['cycle_curve_data'] (B, S=1, 3, L) — S 恒为 1（每样本仅当前观测圈）。
-        真实时序轴是圈内曲线 L，逐时间步的 3 通道向量视作该步的 token，沿 L 轴多尺度混合。
+Input:  batch['cycle_curve_data'] (B, S=1, 2, L) — S 恒为 1（每样本仅当前观测圈）。
+        真实时序轴是圈内曲线 L，逐时间步的 2 通道向量视作该步的 token，沿 L 轴多尺度混合。
 Output: (pred:(B,1), None)
 """
 
@@ -17,14 +17,14 @@ class TimeMixer(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         m = cfg.get('model', {})
-        L       = cfg.get('data', {}).get('charge_discharge_length', 300)
+        L       = cfg.get('data', {}).get('curve_length', 400)
         d_model = m.get('timemixer_d_model', 64)
         dropout = m.get('dropout', 0.1)
         scales  = m.get('timemixer_scales', [1, 4, 8, 16])
 
         self.fixed_lens = [max(1, L // k) for k in scales]
 
-        self.input_proj = nn.Linear(3, d_model)
+        self.input_proj = nn.Linear(2, d_model)
         self.pools      = nn.ModuleList()
         self.mixers     = nn.ModuleList()
 
@@ -41,7 +41,7 @@ class TimeMixer(nn.Module):
         )
 
     def forward(self, batch: dict):
-        x = get_curve_seq(batch)              # (B, L, 3)
+        x = get_curve_seq(batch)              # (B, L, 2)
         B = x.shape[0]
         h  = self.input_proj(x)               # (B, L, d)
         hT = h.permute(0, 2, 1)               # (B, d, L)
