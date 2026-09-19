@@ -23,7 +23,7 @@ data:
   curve_length: 400         # 每圈完整充电曲线的重采样长度
   val_ratio: 0.1
   test_ratio: 0.2
-  n_splits: 3
+  split_seed: 1           # 所有模型和训练 seed 共用同一数据划分
 
   # 划分方式: random | stratified
   split_strategy: random

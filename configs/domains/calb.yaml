@@ -1,6 +1,5 @@
 data:
   pkl_dir: data/preprocessed/CALB
-  n_splits: 3
   val_ratio: 0.2
   test_ratio: 0.2
   # CALB 全寿命 SOH 由汇总表注入 full_soh_series（见 augment_calb_soh.py）。

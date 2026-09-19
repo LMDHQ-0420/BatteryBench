@@ -6,8 +6,8 @@ scripts/evaluate.py — 评估已训练的 checkpoint（多样本 + attention ma
     python scripts/evaluate.py --domain li_ion --model all --task soh_point
     python scripts/evaluate.py --domain four_level --model gru --task rul
 
-random/stratified: 逐 split 评估其 test 子集，报告 mean/std。
-four_level: 对每个 test_set（L1/L2/L3/L4）独立加载并评估，按 level 加权平均。
+random/stratified: 在固定 test 子集上评估。
+four_level: 对每个 test_set（L1/L2/L3/L4）独立评估，按 level 加权平均。
 """
 
 import os
@@ -103,12 +103,16 @@ def _save_seed_summary(model_dir, domain, task, model_name):
     with open(Path(model_dir) / 'summary.json', 'a+') as file:
         fcntl.flock(file, fcntl.LOCK_EX)
         seeds = {}
-        for seed in [1, 7, 42, 123, 2024]:
+        for seed in range(1, 6):
             path = Path(model_dir) / f'seed{seed}' / 'results.json'
             if path.exists():
                 with path.open() as seed_file:
                     result = json.load(seed_file)
-                seeds[str(seed)] = result['level_summary'] if domain == 'four_level' else result['mean']
+                if domain == 'four_level':
+                    seeds[str(seed)] = result['level_summary']
+                else:
+                    names = ('mae', 'mse', 'rmse', 'mape', 'acc15')
+                    seeds[str(seed)] = {name: result[name] for name in names if name in result}
         def aggregate(metrics):
             keys = [key for key in metrics[0] if key not in ('n_samples', 'n_batteries')]
             return {stat: {key: float(function([m[key] for m in metrics])) for key in keys}
@@ -125,7 +129,7 @@ def _save_seed_summary(model_dir, domain, task, model_name):
                    'n_seeds': len(seeds), 'seeds': seeds, 'statistics': statistics}, file, indent=2)
 
 
-def evaluate_one_model(model_name, task, domain, cfg, save_dir, device, seed=42):
+def evaluate_one_model(model_name, task, domain, cfg, save_dir, device, seed=1):
     spec = get_spec(model_name, task)
     cfg['data']['task'] = task
     batch_size = cfg['train'].get(
@@ -137,32 +141,34 @@ def evaluate_one_model(model_name, task, domain, cfg, save_dir, device, seed=42)
     if cfg['data'].get('split_strategy') == 'four_level':
         _eval_four_level(model_name, task, spec, cfg, batch_size, seed_dir, device)
     else:
-        full_ds = _build_full_dataset(spec, cfg, get_pkl_dir(cfg['data']), None)
-        splits = make_battery_splits(full_ds, cfg, seed=42)
-        metrics = []
-        for index, split in enumerate(splits, 1):
-            extension = 'pkl' if spec.build_fn is None else 'pt'
-            checkpoint = os.path.join(seed_dir, f'split{index}.{extension}')
-            output_dir = os.path.join(seed_dir, 'test', f'split{index}')
-            test_ds = split['test']
-            if spec.build_fn is None:
-                evaluate = import_module(f'src.train.{task}.train_severson').evaluate
-                result = evaluate(test_ds, checkpoint, output_dir=output_dir)
-            else:
-                model = _load_model(spec, cfg, checkpoint, device,
-                                    split['train'] if model_name == 'batlinet' else None)
-                result = _eval_dl(cfg, task, model, test_ds, batch_size, device,
-                                  checkpoint, output_dir)
-            _print_metrics(result)
-            metrics.append(result)
-        keys = list(metrics[0])
+        full_dataset = _build_full_dataset(spec, cfg, get_pkl_dir(cfg['data']), None)
+        split = make_battery_splits(
+            full_dataset, cfg, seed=cfg['data'].get('split_seed', 1),
+        )[0]
+        extension = 'pkl' if spec.build_fn is None else 'pt'
+        checkpoint = os.path.join(seed_dir, f'best.{extension}')
+        output_dir = os.path.join(seed_dir, 'test')
+        test_dataset = split['test']
+        if spec.build_fn is None:
+            evaluate = import_module(f'src.train.{task}.train_severson').evaluate
+            metrics = evaluate(test_dataset, checkpoint, output_dir=output_dir)
+        else:
+            model = _load_model(
+                spec, cfg, checkpoint, device,
+                split['train'] if model_name == 'batlinet' else None,
+            )
+            metrics = _eval_dl(
+                cfg, task, model, test_dataset, batch_size, device, checkpoint, output_dir,
+            )
+        _print_metrics(metrics)
         _write_json(os.path.join(seed_dir, 'results.json'), {
-            'domain': domain, 'task': task, 'model': model_name,
-            'splits': [{'split_idx': index, 'n_samples': len(split['test']),
-                         'n_batteries': len({bidx for bidx, _ in split['test']._samples}), **result}
-                       for index, (split, result) in enumerate(zip(splits, metrics), 1)],
-            'mean': {key: float(np.mean([m[key] for m in metrics])) for key in keys},
-            'std': {key: float(np.std([m[key] for m in metrics])) for key in keys}})
+            'domain': domain,
+            'task': task,
+            'model': model_name,
+            'n_samples': len(test_dataset),
+            'n_batteries': len({index for index, _ in test_dataset._samples}),
+            **metrics,
+        })
     _save_seed_summary(model_dir, domain, task, model_name)
 
 
@@ -176,7 +182,7 @@ def _eval_four_level(model_name, task, spec, cfg, batch_size, seed_dir, device):
         train_ds = None
         if model_name == 'batlinet':
             full_ds = _build_full_dataset(spec, cfg, data['train_dirs'], data.get('exclude_pattern'))
-            train_ds = make_battery_splits(full_ds, cfg, seed=42)[0]['train']
+            train_ds = make_battery_splits(full_ds, cfg, seed=data.get('split_seed', 1))[0]['train']
         model = _load_model(spec, cfg, checkpoint, device, train_ds)
     results, by_level = [], {}
     for test_set in data['test_sets']:
@@ -224,7 +230,7 @@ def main():
     parser.add_argument('--model',  required=True)
     parser.add_argument('--task',   default=None, choices=list(ALL_TASKS))
     parser.add_argument('--gpu',    type=int, default=None)
-    parser.add_argument('--seed',   type=int, default=42,
+    parser.add_argument('--seed',   type=int, default=1,
                         help='Selects the results/<model>/seed<N>/ subdir to evaluate.')
     parser.add_argument('--config', default='configs/default.yaml')
     parser.add_argument('--save_dir', default=None)

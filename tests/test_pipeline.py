@@ -42,30 +42,27 @@ class PipelineTests(unittest.TestCase):
     def test_checkpoint_or_old_json_does_not_count_as_complete(self):
         with tempfile.TemporaryDirectory() as temp:
             args = SimpleNamespace(results_dir=Path(temp))
-            job = dict(domain='calb', task='soh_point', model='gru', seed=42)
+            job = dict(domain='calb', task='soh_point', model='gru', seed=1)
             directory = pipeline.seed_dir(job, args)
             directory.mkdir(parents=True)
             for path in pipeline.checkpoints(job, args):
                 path.write_bytes(b'checkpoint')
             metrics = dict(mae=1, mse=1, rmse=1, mape=1)
-            result = dict(domain='calb', task='soh_point', model='gru', splits=[metrics] * 3,
-                          mean=metrics, std=metrics)
+            result = dict(domain='calb', task='soh_point', model='gru', **metrics)
             (directory / 'results.json').write_text(json.dumps(result))
             self.assertFalse(pipeline.result_complete(job, args, set(), 5))
-            result['splits'] = [dict(split_idx=i, n_samples=2, n_batteries=1, **metrics)
-                                for i in range(1, 4)]
+            result.update(n_samples=2, n_batteries=1)
             (directory / 'results.json').write_text(json.dumps(result))
-            for i in range(1, 4):
-                output = directory / 'test' / f'split{i}'
-                output.mkdir(parents=True)
-                with (output / 'predictions.csv').open('w', newline='') as file:
-                    writer = csv.writer(file)
-                    writer.writerow(['sample_index', 'dataset', 'cell_id', 'observation_cycle',
-                                     'true_soh', 'predicted_soh'])
-                    writer.writerows([[0, 'CALB', 'A', 1, 1, 1], [1, 'CALB', 'A', 2, 1, 1]])
-            (directory.parent / 'summary.json').write_text(json.dumps({'seeds': {'42': metrics}}))
+            output = directory / 'test'
+            output.mkdir(parents=True)
+            with (output / 'predictions.csv').open('w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['sample_index', 'dataset', 'cell_id', 'observation_cycle',
+                                 'true_soh', 'predicted_soh'])
+                writer.writerows([[0, 'CALB', 'A', 1, 1, 1], [1, 'CALB', 'A', 2, 1, 1]])
+            (directory.parent / 'summary.json').write_text(json.dumps({'seeds': {'1': metrics}}))
             self.assertTrue(pipeline.result_complete(job, args, set(), 5))
-            (directory / 'test/split2/predictions.csv').write_text('truncated')
+            (directory / 'test/predictions.csv').write_text('truncated')
             self.assertFalse(pipeline.result_complete(job, args, set(), 5))
 
     def test_resume_evaluation_failure_does_not_retrain(self):
@@ -73,7 +70,7 @@ class PipelineTests(unittest.TestCase):
             args = SimpleNamespace(results_dir=Path(temp) / 'results',
                                    state_dir=Path(temp) / 'state', log_dir=Path(temp) / 'log')
             args.log_dir.mkdir()
-            job = dict(domain='calb', task='soh_point', model='gru', seed=42)
+            job = dict(domain='calb', task='soh_point', model='gru', seed=1)
             calls = []
             def operation(job, args, gpu, op, log):
                 calls.append(op)
@@ -99,7 +96,7 @@ class PipelineTests(unittest.TestCase):
                 "assert sys.argv[sys.argv.index('--gpu') + 1] == '0'\n")
             args = SimpleNamespace(config=root / 'config.yaml', results_dir=root / 'results',
                                    job_threads=3)
-            job = dict(domain='calb', task='rul', model='gru', seed=42)
+            job = dict(domain='calb', task='rul', model='gru', seed=1)
             with patch.object(pipeline, 'ROOT', root):
                 pipeline.command(job, args, 2, 'evaluate', root / 'test.log')
             self.assertEqual(len(pipeline.CHILDREN), 0)
@@ -109,7 +106,7 @@ class PipelineTests(unittest.TestCase):
             args = SimpleNamespace(results_dir=Path(temp) / 'results',
                                    state_dir=Path(temp) / 'state', log_dir=Path(temp) / 'log')
             args.log_dir.mkdir()
-            job = dict(domain='calb', task='soh_point', model='gru', seed=42)
+            job = dict(domain='calb', task='soh_point', model='gru', seed=1)
             calls = []
             def operation(job, args, gpu, op, log):
                 calls.append(op)

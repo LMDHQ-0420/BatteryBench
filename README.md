@@ -57,8 +57,8 @@ Place raw datasets under <code>data/raw/</code>. Dataset paths and experiment se
 
 Train and evaluate one experiment:
 
-    python scripts/train.py --domain li_ion --model gru --task rul --seed 42 --gpu 0
-    python scripts/evaluate.py --domain li_ion --model gru --task rul --seed 42 --gpu 0
+    python scripts/train.py --domain li_ion --model gru --task rul --seed 1 --gpu 0
+    python scripts/evaluate.py --domain li_ion --model gru --task rul --seed 1 --gpu 0
 
 Resume the complete benchmark pipeline:
 
@@ -68,7 +68,7 @@ GPU 0 remains unused by the pipeline. Evaluation uses six slots per active GPU, 
 
 ## Results
 
-All previous results used the old input definition and have been removed. Every model is being retrained from scratch. Completed summaries will report each metric as **mean ± standard deviation** across seeds.
+All previous results used the old input definition and have been removed. Every model is being retrained from scratch. Standard domains use one fixed train/validation/test split shared by seeds 1–5; completed summaries report each metric as **mean ± standard deviation** across those seeds.
 
 | Task | MAE | RMSE | MAPE | ACC15 |
 |---|---:|---:|---:|---:|
@@ -80,10 +80,12 @@ Result files follow this layout:
 
     results/<domain>/<task>/<model>/
     ├── seed<seed>/
+    │   ├── best.pt
     │   ├── results.json
-    │   └── test/<split-or-level_dataset>/
+    │   └── test/
     │       ├── predictions.csv
-    │       └── trajectories.npz
+    │       ├── trajectories.npz
+    │       └── <level_dataset>/    # Four-Level only
     └── summary.json
 
 Git publishes JSON summaries and CSV predictions. Checkpoints, fitted models, caches, and trajectory NPZ files remain local.

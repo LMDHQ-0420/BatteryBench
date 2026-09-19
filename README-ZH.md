@@ -57,8 +57,8 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 
 训练并测评一个实验：
 
-    python scripts/train.py --domain li_ion --model gru --task rul --seed 42 --gpu 0
-    python scripts/evaluate.py --domain li_ion --model gru --task rul --seed 42 --gpu 0
+    python scripts/train.py --domain li_ion --model gru --task rul --seed 1 --gpu 0
+    python scripts/evaluate.py --domain li_ion --model gru --task rul --seed 1 --gpu 0
 
 恢复完整流水线：
 
@@ -68,7 +68,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 
 ## 结果
 
-旧结果使用了旧输入定义，现已全部移除。所有模型正在从头训练；完成后，各指标统一按随机种子的 **均值 ± 标准差** 汇报。
+旧结果使用了旧输入定义，现已全部移除。所有模型正在从头训练；普通域的种子 1–5 共用同一个固定训练、验证和测试划分，完成后各指标按五个种子的 **均值 ± 标准差** 汇报。
 
 | 任务 | MAE | RMSE | MAPE | ACC15 |
 |---|---:|---:|---:|---:|
@@ -80,10 +80,12 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 
     results/<domain>/<task>/<model>/
     ├── seed<seed>/
+    │   ├── best.pt
     │   ├── results.json
-    │   └── test/<split-or-level_dataset>/
+    │   └── test/
     │       ├── predictions.csv
-    │       └── trajectories.npz
+    │       ├── trajectories.npz
+    │       └── <level_dataset>/    # 仅 Four-Level
     └── summary.json
 
 Git 发布 JSON 汇总和 CSV 预测；权重、拟合模型、缓存和轨迹 NPZ 只保留在本地。

@@ -48,11 +48,10 @@ def seed_dir(job, args):
 
 
 def checkpoints(job, args):
-    labels = ['best'] if job['domain'] == 'four_level' else ['split1', 'split2', 'split3']
     extension = '.pkl' if job['model'] == 'severson' else '.pt'
-    names = [label + extension for label in labels]
+    names = ['best' + extension]
     if job['task'] == 'rul' and job['model'] not in ('batlinet', 'severson'):
-        names += [label + '_scaler.pkl' for label in labels]
+        names.append('best_scaler.pkl')
     return [seed_dir(job, args) / name for name in names]
 
 
@@ -140,18 +139,11 @@ def result_complete(job, args, expected_sets, n_future):
             if set(summaries) != active_levels or not all(metrics(x) for x in summaries.values()):
                 return False
         else:
-            records = result['splits']
-            if len(records) != 3 or [x['split_idx'] for x in records] != [1, 2, 3]:
+            n = result['n_samples']
+            if n <= 0 or result['n_batteries'] <= 0 or not metrics(result):
                 return False
-            if not metrics(result['mean']) or not metrics(result['std']):
+            if not prediction_complete(directory / 'test', job, n, n_future):
                 return False
-            for record in records:
-                n = record['n_samples']
-                if n <= 0 or record['n_batteries'] <= 0 or not metrics(record):
-                    return False
-                if not prediction_complete(directory / 'test' / f"split{record['split_idx']}",
-                                           job, n, n_future):
-                    return False
         summary = read_json(directory.parent / 'summary.json')
         return str(job['seed']) in summary['seeds']
     except (OSError, ValueError, KeyError, TypeError, IndexError, EOFError, zipfile.BadZipFile):
@@ -317,7 +309,7 @@ def main():
         for domain in ('li_ion', 'calb', 'na_ion', 'zn_ion', 'four_level')
         for task in sorted(models)
         for model in sorted(models[task])
-        for seed in (1, 7, 42, 123, 2024)
+        for seed in range(1, 6)
     ]
     valid_large = {m for names in models.values() for m in names} | {
         f'{t}/{m}' for t, names in models.items() for m in names}
