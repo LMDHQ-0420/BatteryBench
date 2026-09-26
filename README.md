@@ -14,6 +14,7 @@
 
 ## News
 
+- 📊 **[2026/09/26]** Published complete five-seed Four-Level results for 15 standard baselines; BatLiNet and the remaining standard-domain runs are still in progress.
 - 🔒 **[2026/09/19]** Reworked all task inputs to use complete charge curves and removed capacity leakage from SOH point estimation.
 - 🧪 **[2026/09/19]** Started retraining all baselines with the updated 400-point input protocol.
 - 🧭 **[2026/07/15]** Introduced the Four-Level protocol for cross-batch, cross-dataset, cross-cathode, and cross-ion evaluation.
@@ -34,6 +35,26 @@ All tasks now use only the complete positive-current charge segment. Every curve
 | RUL | Complete charge curves from cycle 1 through cycle u | <code>[B, S, 3, 400]</code> | V, I, Q<sub>charge</sub> | Battery lifetime/EOL |
 
 Unobserved history positions are zero-filled and excluded through <code>curve_attn_mask</code>. SOH trajectory loss and metrics are computed only after the last observed cycle. No task uses discharge curves, and SOH Point does not expose charge or discharge capacity to any baseline, including IC2ML, BatLiNet, and Severson.
+
+## Data Splits
+
+All splits are made at the **battery level**, so cycles from one battery never appear in more than one split. The split is fixed with <code>split_seed: 1</code> and shared by training seeds 1–5; those seeds change model initialization and optimization, not the train/validation/test batteries.
+
+| Domain | Training | Validation | Test | Split rule |
+|---|---:|---:|---:|---|
+| Li-ion | 70% | 10% | 20% | Fixed battery-level random split |
+| CALB | 60% | 20% | 20% | Fixed battery-level random split |
+| Na-ion | 60% | 20% | 20% | Fixed battery-level random split |
+| Zn-ion | 60% | 20% | 20% | Fixed battery-level random split |
+
+The **Four-Level** split measures different forms of generalization as the test distribution moves away from the training pool. The levels describe distinct distribution shifts rather than a guarantee that every metric increases monotonically from L1 to L4. Its training pool contains HUST batches 1–7 and 10, MATR batches 1–3, RWTH, SDU, Stanford, Tongji, ISU-ILCC, MICH, CALB, and XJTU. Eight percent of each cathode group is held out for validation. All test batteries below are fixed and excluded from training and validation.
+
+| Level | Generalization setting | Fixed test set |
+|---|---|---|
+| L1 | Same chemistry and dataset, unseen batches | HUST batches 8–9 |
+| L2 | Same chemistry under an unseen batch/protocol distribution | MATR batch 4 |
+| L3 | Unseen Li-ion cathode and dataset distributions | CALCE and HNEI |
+| L4 | Unseen ion chemistry | Na-ion and Zn-ion |
 
 ## Models
 
@@ -68,27 +89,36 @@ The pipeline first runs Four-Level seed 1 in the order SOH Trajectory, SOH Point
 
 ## Results
 
-All previous results used the old input definition and have been removed. Every model is being retrained from scratch. Standard domains use one fixed train/validation/test split shared by seeds 1–5; completed summaries report each metric as **mean ± standard deviation** across those seeds.
+All previous results used the old input definition and have been removed. The table below reports the lowest mean RMSE at each Four-Level setting among the 15 standard baselines that have completed all five seeds. Values are **mean ± population standard deviation** across seeds 1–5. SOH MAE and RMSE use the SOH ratio; RUL errors use cycles; MAPE is shown as a percentage. RUL L1 is empty because that test set has no valid samples under the current RUL construction.
 
-| Task | MAE | RMSE | MAPE | ACC15 |
-|---|---:|---:|---:|---:|
-| RUL |  |  |  |  |
-| SOH Point |  |  |  | — |
-| SOH Trajectory |  |  |  | — |
+| Task | Level | Model | MAE | RMSE | MAPE |
+|---|---|---|---:|---:|---:|
+| SOH Trajectory | L1 | TimeMixer | 0.0183 ± 0.0011 | 0.0277 ± 0.0010 | 1.97 ± 0.11% |
+| SOH Trajectory | L2 | CNN | 0.0185 ± 0.0017 | 0.0261 ± 0.0010 | 2.04 ± 0.18% |
+| SOH Trajectory | L3 | IC2ML | 0.0384 ± 0.0123 | 0.0435 ± 0.0112 | 4.43 ± 1.49% |
+| SOH Trajectory | L4 | iTransformer | 0.0620 ± 0.0024 | 0.0702 ± 0.0028 | 114.81 ± 0.74% |
+| SOH Point | L1 | BiGRU | 0.0316 ± 0.0044 | 0.0438 ± 0.0013 | 3.41 ± 0.42% |
+| SOH Point | L2 | CNN | 0.0446 ± 0.0056 | 0.0828 ± 0.0060 | 6.70 ± 0.73% |
+| SOH Point | L3 | MLP | 0.1219 ± 0.0209 | 0.1601 ± 0.0192 | 22.26 ± 3.16% |
+| SOH Point | L4 | BiGRU | 0.1362 ± 0.0112 | 0.1692 ± 0.0063 | 165.38 ± 5.27% |
+| RUL | L1 |  |  |  |  |
+| RUL | L2 | PatchTST | 208.1265 ± 43.6308 | 247.4517 ± 45.4220 | 25.81 ± 4.82% |
+| RUL | L3 | MLP | 180.5774 ± 11.6868 | 202.9692 ± 10.7287 | 64.86 ± 4.66% |
+| RUL | L4 | MLP | 372.4896 ± 35.6333 | 404.8696 ± 21.0490 | 201.36 ± 29.14% |
+
+Complete model-by-level and model-by-test-set tables are available in [the Four-Level result summary](results/four_level/summary_levels.md) and [the test-set summary](results/four_level/summary_test_sets.md). The repository currently contains 284 complete experiments: all five seeds for 15 standard Four-Level baselines, plus 59 Li-ion SOH Trajectory experiments. BatLiNet and the remaining standard-domain experiments are pending.
 
 Result files follow this layout:
 
     results/<domain>/<task>/<model>/
     ├── seed<seed>/
-    │   ├── best.pt
     │   ├── results.json
     │   └── test/
     │       ├── predictions.csv
-    │       ├── trajectories.npz
     │       └── <level_dataset>/    # Four-Level only
     └── summary.json
 
-Git publishes JSON summaries and CSV predictions. Checkpoints, fitted models, caches, and trajectory NPZ files remain local.
+Git publishes JSON summaries, CSV predictions, and Markdown tables. All `.pt`, `.pkl`, and `.npz` files remain local.
 
 ## Project Structure
 

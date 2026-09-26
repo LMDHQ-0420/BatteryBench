@@ -14,7 +14,7 @@ class PredictionWriter:
         self.task = task
         self.index = 0
         self.file = (self.directory / 'predictions.csv').open('w', newline='')
-        self.csv = csv.writer(self.file)
+        self.csv = csv.writer(self.file, lineterminator='\n')
         columns = ['sample_index', 'dataset', 'cell_id', 'observation_cycle']
         if task == 'rul':
             columns += ['true_eol', 'predicted_eol']
