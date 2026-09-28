@@ -19,19 +19,11 @@
 
 <p align="center"><a href="README-ZH.md">中文</a> · <a href="#raw-datasets">Raw datasets</a> · <a href="#input-protocol">Input protocol</a> · <a href="#results">Results</a> · <a href="#quick-start">Quick start</a></p>
 
-## News
-
-- 📊 **[2026/09/28]** Published complete five-seed results for 15 baselines across Four-Level, Li-ion, CALB, Na-ion, and Zn-ion benchmarks.
-- 🔒 **[2026/09/19]** Reworked all task inputs to use complete charge curves and removed capacity leakage from SOH point estimation.
-- 🧪 **[2026/09/19]** Started retraining all baselines with the updated 400-point input protocol.
-- 🧭 **[2026/07/15]** Introduced the Four-Level protocol for cross-batch, cross-dataset, cross-cathode, and cross-ion evaluation.
-- 🚀 **[2026/06/26]** Released the BatteryBench benchmark and training pipeline.
-
 ## About
 
 BatteryBench provides a shared training and evaluation interface for battery lifetime and state-of-health prediction. It covers Li-ion, CALB, Na-ion, and Zn-ion experiments, together with a Four-Level protocol for same-dataset cross-batch (L1), cross-dataset (L2), cross-cathode (L3), and cross-ion (L4) generalization.
 
-All tasks now use only the complete positive-current charge segment. Every curve is linearly resampled to 400 points. Voltage is divided by the maximum voltage of that charge segment; current and charge capacity are divided by nominal cell capacity. Discharge capacity is used only to construct SOH, EOL, and RUL labels and is never exposed as a model input.
+All tasks use the complete positive-current charge segment, with each curve linearly resampled to 400 points. Voltage is divided by the maximum voltage of that charge segment, while current and charge capacity are divided by nominal cell capacity. Discharge capacity provides the SOH, EOL, and RUL labels.
 
 ### Raw Datasets
 
@@ -47,11 +39,11 @@ The dataset names below link directly to their raw-data sources. Please follow e
 | SOH Trajectory | Complete charge curves from cycle 1 through cycle u | <code>[B, S, 3, 400]</code> | V, I, Q<sub>charge</sub> | SOH from cycle u+1 to EOL |
 | RUL | Complete charge curves from cycle 1 through cycle u | <code>[B, S, 3, 400]</code> | V, I, Q<sub>charge</sub> | Battery lifetime/EOL |
 
-Unobserved history positions are zero-filled and excluded through <code>curve_attn_mask</code>. SOH trajectory loss and metrics are computed only after the last observed cycle. No task uses discharge curves, and SOH Point does not expose charge or discharge capacity to any baseline, including battery-specific methods.
+Unobserved history positions are zero-filled and masked through <code>curve_attn_mask</code>. SOH trajectory loss and metrics are computed after the last observed cycle.
 
 ## Data Splits
 
-All splits are made at the **battery level**, so cycles from one battery never appear in more than one split. The split is fixed with <code>split_seed: 1</code> and shared by training seeds 1–5; those seeds change model initialization and optimization, not the train/validation/test batteries.
+Splits are defined at the **battery level**, with all cycles from a battery assigned to the same split. A fixed <code>split_seed: 1</code> defines the train, validation, and test batteries shared by training seeds 1–5. The training seed controls model initialization and optimization.
 
 | Domain | Training | Validation | Test | Split rule |
 |---|---|---|---|---|
@@ -60,7 +52,7 @@ All splits are made at the **battery level**, so cycles from one battery never a
 | Na-ion | 60% | 20% | 20% | Fixed battery-level random split |
 | Zn-ion | 60% | 20% | 20% | Fixed battery-level random split |
 
-The **Four-Level** split measures different forms of generalization as the test distribution moves away from the training pool. The levels describe distinct distribution shifts rather than a guarantee that every metric increases monotonically from L1 to L4. Its training pool contains HUST batches 1–7 and 10, MATR batches 1–3, RWTH, SDU, Stanford, Tongji, ISU-ILCC, MICH, CALB, and XJTU. Eight percent of each cathode group is held out for validation. All test batteries below are fixed and excluded from training and validation.
+The **Four-Level** split measures different forms of generalization as the test distribution moves away from the training pool. Its training pool contains HUST batches 1–7 and 10, MATR batches 1–3, RWTH, SDU, Stanford, Tongji, ISU-ILCC, MICH, CALB, and XJTU. Eight percent of each cathode group is used for validation, and the datasets below form the fixed test sets.
 
 | Level | Generalization setting | Fixed test set |
 |---|---|---|
@@ -337,7 +329,7 @@ The complete summary covers five domains, three tasks, 15 models, and seeds 1–
 
 Four-Level tables use a two-row header: the first row gives the generalization level and the second gives RMSE, MAE, and MAPE. Values within each table use nonbreaking spacing.
 
-**Why RUL has no L1 result:** the L1 test set contains 16 cells from HUST batches 8–9. None reaches the 80% SOH threshold within its recorded lifetime, so no ground-truth EOL or valid RUL test sample can be constructed. These entries are shown as `-`; the experiments were not skipped.
+**Why RUL has no L1 result:** the L1 test set contains 16 cells from HUST batches 8–9. None reaches the 80% SOH threshold within its recorded lifetime, so no ground-truth EOL or valid RUL test sample can be constructed. These entries are shown as `-`.
 
 #### SOH Trajectory
 

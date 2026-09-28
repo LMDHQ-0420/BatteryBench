@@ -151,13 +151,13 @@ def results_section(summary: dict, chinese: bool) -> str:
         lines += [
             '### Four-Level', '',
             'Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为 RMSE、MAE、MAPE。表格中的数值使用不换行格式。', '',
-            '**为什么 RUL 没有 L1：** L1 测试集由 HUST batch 8–9 的 16 块电池组成。这些电池在现有记录中均未下降到 80% SOH 阈值，因此没有可作为真值的 EOL，也无法构造 RUL 测试样本。对应位置以 `-` 表示；这不是模型漏跑。', '',
+            '**为什么 RUL 没有 L1：** L1 测试集由 HUST batch 8–9 的 16 块电池组成。这些电池在现有记录中均未下降到 80% SOH 阈值，因此没有可作为真值的 EOL，也无法构造 RUL 测试样本。对应位置以 `-` 表示。', '',
         ]
     else:
         lines += [
             '### Four-Level', '',
             'Four-Level tables use a two-row header: the first row gives the generalization level and the second gives RMSE, MAE, and MAPE. Values within each table use nonbreaking spacing.', '',
-            '**Why RUL has no L1 result:** the L1 test set contains 16 cells from HUST batches 8–9. None reaches the 80% SOH threshold within its recorded lifetime, so no ground-truth EOL or valid RUL test sample can be constructed. These entries are shown as `-`; the experiments were not skipped.', '',
+            '**Why RUL has no L1 result:** the L1 test set contains 16 cells from HUST batches 8–9. None reaches the 80% SOH threshold within its recorded lifetime, so no ground-truth EOL or valid RUL test sample can be constructed. These entries are shown as `-`.', '',
         ]
     for task in TASKS:
         lines += [f"#### {TASK_NAMES[task][1 if chinese else 0]}", '',
