@@ -148,6 +148,17 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(len(scheduled), len(jobs))
         self.assertEqual(len(set(scheduled)), len(jobs))
 
+    def test_domain_filter_limits_the_complete_schedule(self):
+        models = {task: {'gru', 'batlinet'} for task in pipeline.TASKS}
+        jobs = pipeline.build_jobs(models, ['calb'])
+        phases = pipeline.make_phases(jobs, [0, 1, 2, 3], ['calb'])
+        scheduled = [job for _, queue, _ in phases for job in queue]
+
+        self.assertEqual(len(jobs), 30)
+        self.assertEqual(len(scheduled), 30)
+        self.assertTrue(all(job['domain'] == 'calb' for job in scheduled))
+        self.assertEqual([len(queue) for _, queue, _ in phases], [0, 0, 0, 0, 15, 15])
+
 
 if __name__ == '__main__':
     unittest.main()

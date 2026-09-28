@@ -46,3 +46,9 @@ Thumbs.db
 /backups/
 /pipeline_state/
 .pytest_cache/
+
+# Local runtime and research working files
+/log/
+/logs/
+/papers/
+/.rsi/

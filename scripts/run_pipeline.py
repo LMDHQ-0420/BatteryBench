@@ -268,17 +268,17 @@ def run_phase(jobs, args, phase, gpu_slots, expected_sets, n_future):
     return failures
 
 
-def build_jobs(models):
+def build_jobs(models, domains=DOMAINS):
     return [
         {'domain': domain, 'task': task, 'model': model, 'seed': seed}
-        for domain in DOMAINS
+        for domain in domains
         for task in TASKS
         for model in sorted(models[task])
         for seed in SEEDS
     ]
 
 
-def make_phases(jobs, gpus):
+def make_phases(jobs, gpus, domains=DOMAINS):
     normal_slots = {gpu: 2 if gpu == 0 else 3 for gpu in gpus}
     batlinet_slots = {gpu: 1 for gpu in gpus if gpu != 0}
     regular = [job for job in jobs if job['model'] != 'batlinet']
@@ -295,7 +295,8 @@ def make_phases(jobs, gpus):
         if job['domain'] == 'four_level' and job['seed'] == seed and job['task'] == task
     ]
     other_domains = [
-        job for domain in DOMAINS[:-1] for task in TASKS for seed in SEEDS for job in regular
+        job for domain in domains if domain != 'four_level'
+        for task in TASKS for seed in SEEDS for job in regular
         if job['domain'] == domain and job['task'] == task and job['seed'] == seed
     ]
     phases.extend([
@@ -309,6 +310,8 @@ def make_phases(jobs, gpus):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--gpus', nargs='+', type=int, default=[0, 1, 2, 3])
+    parser.add_argument('--domains', nargs='+', choices=DOMAINS, default=list(DOMAINS),
+                        help='只运行指定数据划分；默认运行全部划分')
     parser.add_argument('--job-threads', type=int, default=3)
     parser.add_argument('--config', type=Path, default=ROOT / 'configs/default.yaml')
     parser.add_argument('--results-dir', type=Path, default=ROOT / 'results')
@@ -334,11 +337,11 @@ def main():
                 and isinstance(x.target, ast.Name) and x.target.id == '_REGISTRY')
     models = {ast.literal_eval(k): {ast.literal_eval(m) for m in v.keys}
               for k, v in zip(node.value.keys, node.value.values)}
-    jobs = build_jobs(models)
+    jobs = build_jobs(models, args.domains)
     finished = [job for job in jobs if result_complete(job, args, expected_sets, n_future)]
     complete_ids = {job_id(job) for job in finished}
     pending = [job for job in jobs if job_id(job) not in complete_ids]
-    phases = make_phases(pending, args.gpus)
+    phases = make_phases(pending, args.gpus, args.domains)
 
     say(f'总计 {len(jobs)}；已完成 {len(finished)}；待运行 {len(pending)}')
     say('普通模型槽位 GPU0=2、GPU1=3、GPU2=3、GPU3=3；'
