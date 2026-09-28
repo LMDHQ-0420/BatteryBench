@@ -1,0 +1,11 @@
+{
+  "domain": "li_ion",
+  "task": "soh_point",
+  "model": "timemixer",
+  "n_samples": 397713,
+  "n_batteries": 192,
+  "mae": 0.04918607889353344,
+  "mse": 0.004929714668462984,
+  "rmse": 0.07021192682488485,
+  "mape": 0.19457921567200623
+}
