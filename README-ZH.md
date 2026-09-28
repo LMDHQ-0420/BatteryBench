@@ -15,7 +15,7 @@
   <a href="https://github.com/LMDHQ-0420/BatteryBench/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/LMDHQ-0420/BatteryBench?style=flat-square&logo=github"></a>
 </p>
 
-<p align="center">🔋 多电池体系 &nbsp;·&nbsp; 📈 SOH 与 RUL &nbsp;·&nbsp; 🧭 Four-Level 泛化 &nbsp;·&nbsp; 🧪 五个随机种子</p>
+<p align="center">🔋 多电池体系 &nbsp;·&nbsp; 📈 SOH 与 RUL &nbsp;·&nbsp; 🧭 Four-Level 泛化</p>
 
 <p align="center"><a href="README.md">English</a> · <a href="#原始数据集">原始数据</a> · <a href="#输入方案">输入方案</a> · <a href="#结果">结果</a> · <a href="#快速开始">快速开始</a></p>
 

@@ -15,7 +15,7 @@
   <a href="https://github.com/LMDHQ-0420/BatteryBench/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/LMDHQ-0420/BatteryBench?style=flat-square&logo=github"></a>
 </p>
 
-<p align="center">🔋 Multi-chemistry &nbsp;·&nbsp; 📈 SOH & RUL &nbsp;·&nbsp; 🧭 Four-Level generalization &nbsp;·&nbsp; 🧪 Five seeds</p>
+<p align="center">🔋 Multi-chemistry &nbsp;·&nbsp; 📈 SOH & RUL &nbsp;·&nbsp; 🧭 Four-Level generalization</p>
 
 <p align="center"><a href="README-ZH.md">中文</a> · <a href="#raw-datasets">Raw datasets</a> · <a href="#input-protocol">Input protocol</a> · <a href="#results">Results</a> · <a href="#quick-start">Quick start</a></p>
 
