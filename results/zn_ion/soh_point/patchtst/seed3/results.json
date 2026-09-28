@@ -1,0 +1,11 @@
+{
+  "domain": "zn_ion",
+  "task": "soh_point",
+  "model": "patchtst",
+  "n_samples": 15582,
+  "n_batteries": 28,
+  "mae": 0.053464172490302934,
+  "mse": 0.006231239007023552,
+  "rmse": 0.07893819738899256,
+  "mape": 7.047379663644382
+}

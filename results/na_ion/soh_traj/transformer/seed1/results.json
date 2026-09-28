@@ -1,0 +1,11 @@
+{
+  "domain": "na_ion",
+  "task": "soh_traj",
+  "model": "transformer",
+  "n_samples": 1086,
+  "n_batteries": 11,
+  "mae": 0.021016103133532773,
+  "mse": 0.001023086300465667,
+  "rmse": 0.03198572025866647,
+  "mape": 0.0247357786920042
+}

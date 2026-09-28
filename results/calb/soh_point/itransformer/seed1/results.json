@@ -1,0 +1,11 @@
+{
+  "domain": "calb",
+  "task": "soh_point",
+  "model": "itransformer",
+  "n_samples": 496,
+  "n_batteries": 5,
+  "mae": 0.0023496271141113774,
+  "mse": 1.168281726839485e-05,
+  "rmse": 0.0034180136436817877,
+  "mape": 0.0023519058452444587
+}

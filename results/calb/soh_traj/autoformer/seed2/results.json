@@ -1,0 +1,11 @@
+{
+  "domain": "calb",
+  "task": "soh_traj",
+  "model": "autoformer",
+  "n_samples": 496,
+  "n_batteries": 5,
+  "mae": 0.004552189199169427,
+  "mse": 3.8497393117021006e-05,
+  "rmse": 0.0062046267508224055,
+  "mape": 0.004725525522238773
+}

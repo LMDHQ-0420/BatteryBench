@@ -1,0 +1,11 @@
+{
+  "domain": "calb",
+  "task": "soh_point",
+  "model": "autoformer",
+  "n_samples": 496,
+  "n_batteries": 5,
+  "mae": 0.027907794762042262,
+  "mse": 0.0007800694930367259,
+  "rmse": 0.027929724184759253,
+  "mape": 0.027946631796464987
+}

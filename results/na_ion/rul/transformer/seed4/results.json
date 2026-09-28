@@ -1,0 +1,12 @@
+{
+  "domain": "na_ion",
+  "task": "rul",
+  "model": "transformer",
+  "n_samples": 600,
+  "n_batteries": 6,
+  "mae": 18.09598275502523,
+  "mse": 486.2809129773421,
+  "rmse": 22.0517780003641,
+  "mape": 0.11227709685794247,
+  "acc15": 0.66
+}

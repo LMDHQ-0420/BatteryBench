@@ -1,0 +1,11 @@
+{
+  "domain": "calb",
+  "task": "soh_point",
+  "model": "patchtst",
+  "n_samples": 496,
+  "n_batteries": 5,
+  "mae": 0.001701043858643501,
+  "mse": 4.613243430839192e-06,
+  "rmse": 0.0021478462307249076,
+  "mape": 0.001702758626609445
+}

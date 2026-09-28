@@ -1,0 +1,12 @@
+{
+  "domain": "na_ion",
+  "task": "rul",
+  "model": "autoformer",
+  "n_samples": 600,
+  "n_batteries": 6,
+  "mae": 28.997717793782552,
+  "mse": 1148.155669164815,
+  "rmse": 33.88444582938926,
+  "mape": 0.1898332097292459,
+  "acc15": 0.475
+}

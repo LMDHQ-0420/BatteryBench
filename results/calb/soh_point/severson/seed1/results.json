@@ -1,0 +1,11 @@
+{
+  "domain": "calb",
+  "task": "soh_point",
+  "model": "severson",
+  "n_samples": 496,
+  "n_batteries": 5,
+  "mae": 0.001840814900123526,
+  "mse": 4.1283964958812995e-06,
+  "rmse": 0.00203184558859213,
+  "mape": 0.0018437384927170292
+}

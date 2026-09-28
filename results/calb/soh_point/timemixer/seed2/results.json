@@ -1,0 +1,11 @@
+{
+  "domain": "calb",
+  "task": "soh_point",
+  "model": "timemixer",
+  "n_samples": 496,
+  "n_batteries": 5,
+  "mae": 0.03409325331449509,
+  "mse": 0.0011771734818291366,
+  "rmse": 0.03430996184534656,
+  "mape": 0.03413860276111971
+}

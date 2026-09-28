@@ -1,0 +1,11 @@
+{
+  "domain": "na_ion",
+  "task": "soh_traj",
+  "model": "autoformer",
+  "n_samples": 1086,
+  "n_batteries": 11,
+  "mae": 0.01979346713269273,
+  "mse": 0.0007968226630349274,
+  "rmse": 0.02822804745346244,
+  "mape": 0.023221377980399093
+}

@@ -1,0 +1,11 @@
+{
+  "domain": "zn_ion",
+  "task": "soh_point",
+  "model": "timemixer",
+  "n_samples": 15582,
+  "n_batteries": 28,
+  "mae": 0.06634009318624383,
+  "mse": 0.007820934303927203,
+  "rmse": 0.08843604640601706,
+  "mape": 4.552015405363771
+}

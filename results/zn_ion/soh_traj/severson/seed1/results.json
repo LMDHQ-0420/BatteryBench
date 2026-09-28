@@ -1,0 +1,11 @@
+{
+  "domain": "zn_ion",
+  "task": "soh_traj",
+  "model": "severson",
+  "n_samples": 2531,
+  "n_batteries": 28,
+  "mae": 0.04953495659648602,
+  "mse": 0.005110235671572777,
+  "rmse": 0.07148591239938662,
+  "mape": 9.789938068390043
+}

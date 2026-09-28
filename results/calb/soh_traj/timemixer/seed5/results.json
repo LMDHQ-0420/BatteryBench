@@ -1,0 +1,11 @@
+{
+  "domain": "calb",
+  "task": "soh_traj",
+  "model": "timemixer",
+  "n_samples": 496,
+  "n_batteries": 5,
+  "mae": 0.003795118702139555,
+  "mse": 2.7531038303979652e-05,
+  "rmse": 0.005247002792450148,
+  "mape": 0.003937315746511096
+}

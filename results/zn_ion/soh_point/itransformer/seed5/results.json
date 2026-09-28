@@ -1,0 +1,11 @@
+{
+  "domain": "zn_ion",
+  "task": "soh_point",
+  "model": "itransformer",
+  "n_samples": 15582,
+  "n_batteries": 28,
+  "mae": 0.05311153481798878,
+  "mse": 0.00494388778983361,
+  "rmse": 0.07031278539379314,
+  "mape": 6.7016306097986185
+}

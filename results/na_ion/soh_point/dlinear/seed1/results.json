@@ -1,0 +1,11 @@
+{
+  "domain": "na_ion",
+  "task": "soh_point",
+  "model": "dlinear",
+  "n_samples": 2402,
+  "n_batteries": 13,
+  "mae": 0.06449920537072752,
+  "mse": 0.00574754016497258,
+  "rmse": 0.07581253303361246,
+  "mape": 0.0731474346128912
+}

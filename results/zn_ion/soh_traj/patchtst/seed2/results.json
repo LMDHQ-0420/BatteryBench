@@ -1,0 +1,11 @@
+{
+  "domain": "zn_ion",
+  "task": "soh_traj",
+  "model": "patchtst",
+  "n_samples": 2531,
+  "n_batteries": 28,
+  "mae": 0.06271658308842981,
+  "mse": 0.006230198533864888,
+  "rmse": 0.07893160668493254,
+  "mape": 9.087678920671454
+}

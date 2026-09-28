@@ -1,0 +1,11 @@
+{
+  "domain": "calb",
+  "task": "soh_point",
+  "model": "dlinear",
+  "n_samples": 496,
+  "n_batteries": 5,
+  "mae": 0.00254586158740905,
+  "mse": 1.450740971324414e-05,
+  "rmse": 0.003808859371681257,
+  "mape": 0.002548607085353934
+}

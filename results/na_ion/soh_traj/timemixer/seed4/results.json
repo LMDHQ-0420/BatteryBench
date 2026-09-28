@@ -1,0 +1,11 @@
+{
+  "domain": "na_ion",
+  "task": "soh_traj",
+  "model": "timemixer",
+  "n_samples": 1086,
+  "n_batteries": 11,
+  "mae": 0.02684760067668231,
+  "mse": 0.0015769724308086937,
+  "rmse": 0.03971111218297334,
+  "mape": 0.03063146645805685
+}

@@ -1,0 +1,11 @@
+{
+  "domain": "calb",
+  "task": "soh_traj",
+  "model": "transformer",
+  "n_samples": 496,
+  "n_batteries": 5,
+  "mae": 0.0037150123390456394,
+  "mse": 2.643715916513249e-05,
+  "rmse": 0.005141707806277258,
+  "mape": 0.003851301210053422
+}

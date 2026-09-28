@@ -1,0 +1,11 @@
+{
+  "domain": "zn_ion",
+  "task": "soh_traj",
+  "model": "transformer",
+  "n_samples": 2531,
+  "n_batteries": 28,
+  "mae": 0.04104128953655394,
+  "mse": 0.0030231379034118423,
+  "rmse": 0.05498306924328472,
+  "mape": 10.246310959841656
+}
