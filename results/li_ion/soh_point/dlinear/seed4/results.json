@@ -1,0 +1,11 @@
+{
+  "domain": "li_ion",
+  "task": "soh_point",
+  "model": "dlinear",
+  "n_samples": 397713,
+  "n_batteries": 192,
+  "mae": 0.25713727623602206,
+  "mse": 0.09108770911381738,
+  "rmse": 0.3018074040076177,
+  "mape": 2.699994281268852
+}
