@@ -1123,9 +1123,14 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
     ├── requirements.txt
     └── run_<划分>.sh           每个数据划分的全量运行入口
 
+## 联系与贡献
+
+欢迎提出问题和建议，也欢迎贡献新的电池数据集，以支持 BatteryBench 持续扩展与更新。如有相关想法，请通过 [sunyuxiang25@mails.ucas.ac.cn](mailto:sunyuxiang25@mails.ucas.ac.cn) 与我们联系。
+
 ## Acknowledgement
 
 本项目基于并受益于以下开源仓库：
 
-- [Time-Series-Library](https://github.com/thuml/Time-Series-Library)
-- [BatteryML](https://github.com/microsoft/BatteryML)
+- [thuml/Time-Series-Library](https://github.com/thuml/Time-Series-Library)
+- [microsoft/BatteryML](https://github.com/microsoft/BatteryML)
+- [Ruifeng-Tan/BatteryLife](https://github.com/Ruifeng-Tan/BatteryLife)

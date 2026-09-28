@@ -1123,9 +1123,14 @@ Each script covers all tasks, models, and seeds 1–5 for its split. Ordinary mo
     ├── requirements.txt
     └── run_<split>.sh          Full benchmark entry points for each split
 
+## Contact and Contributions
+
+Questions, feedback, and dataset contributions are welcome. If you would like to contribute a battery dataset or help extend BatteryBench, please contact [sunyuxiang25@mails.ucas.ac.cn](mailto:sunyuxiang25@mails.ucas.ac.cn).
+
 ## Acknowledgement
 
 This repo is constructed based on the following repos:
 
-- [Time-Series-Library](https://github.com/thuml/Time-Series-Library)
-- [BatteryML](https://github.com/microsoft/BatteryML)
+- [thuml/Time-Series-Library](https://github.com/thuml/Time-Series-Library)
+- [microsoft/BatteryML](https://github.com/microsoft/BatteryML)
+- [Ruifeng-Tan/BatteryLife](https://github.com/Ruifeng-Tan/BatteryLife)
