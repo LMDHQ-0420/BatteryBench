@@ -1,0 +1,11 @@
+{
+  "domain": "li_ion",
+  "task": "soh_point",
+  "model": "autoformer",
+  "n_samples": 397713,
+  "n_batteries": 192,
+  "mae": 0.3328454744724982,
+  "mse": 0.1380426585793405,
+  "rmse": 0.3715409245013805,
+  "mape": 3.536575002901697
+}
