@@ -1,20 +1,27 @@
 <p align="center">
-  <img src="asset/logo.svg" alt="BatteryBench logo" width="520">
+  <a href="https://github.com/LMDHQ-0420/BatteryBench"><img src="asset/logo.svg" alt="BatteryBench logo" width="520"></a>
 </p>
 
 <h1 align="center">BatteryBench</h1>
 
-<p align="center">
-  面向多种电池体系与泛化层级的统一寿命和健康状态预测基准。
-</p>
+<p align="center"><strong>面向多种电池体系、三类预测任务与四级泛化评测的统一基准。</strong></p>
 
 <p align="center">
-  <a href="README.md">English</a>
+  <a href="https://www.python.org/"><img alt="Python 3.11" src="https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white"></a>
+  <a href="https://pytorch.org/"><img alt="PyTorch 2.12.0" src="https://img.shields.io/badge/PyTorch-2.12.0-EE4C2C?style=flat-square&logo=pytorch&logoColor=white"></a>
+  <img alt="CUDA 12.6" src="https://img.shields.io/badge/CUDA-12.6-76B900?style=flat-square&logo=nvidia&logoColor=white">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/License-MIT-2ea44f?style=flat-square"></a>
+  <img alt="1,125 completed experiments" src="https://img.shields.io/badge/Experiments-1%2C125-8A2BE2?style=flat-square">
+  <a href="https://github.com/LMDHQ-0420/BatteryBench/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/LMDHQ-0420/BatteryBench?style=flat-square&logo=github"></a>
 </p>
+
+<p align="center">🔋 多电池体系 &nbsp;·&nbsp; 📈 SOH 与 RUL &nbsp;·&nbsp; 🧭 Four-Level 泛化 &nbsp;·&nbsp; 🧪 五个随机种子</p>
+
+<p align="center"><a href="README.md">English</a> · <a href="#原始数据集">原始数据</a> · <a href="#输入方案">输入方案</a> · <a href="#结果">结果</a> · <a href="#快速开始">快速开始</a></p>
 
 ## 新闻
 
-- 📊 **[2026/09/28]** 发布 15 个基线在 Four-Level、锂离子、CALB、Na-ion和Zn-ion基准上的完整五种子结果。
+- 📊 **[2026/09/28]** 发布 15 个基线在 Four-Level、锂离子、CALB、Na-ion 和 Zn-ion 基准上的完整五种子结果。
 - 🔒 **[2026/09/19]** 三个任务统一改用完整充电曲线，并去除 SOH 点估计中的容量泄漏。
 - 🧪 **[2026/09/19]** 开始按新的 400 点输入方案重新训练全部基线。
 - 🧭 **[2026/07/15]** 引入跨批次、跨数据集、跨正极材料和跨离子体系的 Four-Level 泛化协议。
@@ -22,14 +29,38 @@
 
 ## 项目介绍
 
-BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评接口，覆盖锂离子、CALB、Na-ion和Zn-ion实验，并通过 Four-Level 协议评估同数据集跨批次（L1）、跨数据集（L2）、跨正极材料（L3）和跨离子体系（L4）泛化能力。
+BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评接口，覆盖锂离子、CALB、Na-ion 和 Zn-ion 实验，并通过 Four-Level 协议评估同数据集跨批次（L1）、跨数据集（L2）、跨正极材料（L3）和跨离子体系（L4）泛化能力。
 
 三个任务都只使用正电流对应的完整充电阶段，每条曲线线性重采样为 400 点。电压除以当前充电段最大电压，电流和充电容量除以电池额定容量。放电容量只用于生成 SOH、EOL 和 RUL 标签，绝不进入模型输入。
+
+### 原始数据集
+
+下表给出本项目使用的每个原始数据集的下载入口。使用数据时请遵守原始数据源的许可条款，并引用对应的数据集论文。
+
+| 数据集 | 原始数据下载 |
+|---|---|
+| CALB | [下载](https://zenodo.org/records/17960956) |
+| CALCE | [下载](https://calce.umd.edu/battery-data) |
+| HNEI | [下载](https://www.batteryarchive.org/index.html) |
+| HUST | [下载](https://data.mendeley.com/datasets/nsc7hnsg4s/2) |
+| ISU-ILCC | [下载](https://iastate.figshare.com/articles/dataset/_b_ISU-ILCC_Battery_Aging_Dataset_b_/22582234) |
+| MATR | [下载](https://data.matr.io/1/projects/5c48dd2bc625d700019f3204) |
+| MICH | [下载](https://www.batteryarchive.org/index.html) |
+| MICH-EXP | [下载](https://www.batteryarchive.org/index.html) |
+| RWTH | [下载](https://publications.rwth-aachen.de/record/818642/files/Rawdata.zip) |
+| SDU | [下载](https://zenodo.org/records/14859405) |
+| SNL | [下载](https://www.batteryarchive.org/index.html) |
+| Stanford | [下载](https://data.matr.io/8/) |
+| Tongji | [下载](https://zenodo.org/records/6405084) |
+| UL-PUR | [下载](https://www.batteryarchive.org/index.html) |
+| XJTU | [下载](https://zenodo.org/records/10963339) |
+| Na-ion | [下载](https://zenodo.org/records/17960956) |
+| Zn-ion | [下载](https://zenodo.org/records/17960956) |
 
 ## 输入方案
 
 | 任务 | 已观测输入 | 张量形状 | 通道 | 预测目标 |
-|:---:|:---:|:---:|:---:|:---:|
+|---|---|---|---|---|
 | SOH Point | 当前循环的完整充电曲线 | <code>[B, 1, 2, 400]</code> | V, I | 当前循环 SOH |
 | SOH Trajectory | 第 1 圈到第 u 圈的完整充电曲线 | <code>[B, S, 3, 400]</code> | V, I, Q<sub>charge</sub> | 第 u+1 圈到 EOL 的 SOH |
 | RUL | 第 1 圈到第 u 圈的完整充电曲线 | <code>[B, S, 3, 400]</code> | V, I, Q<sub>charge</sub> | 电池寿命/EOL |
@@ -41,7 +72,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 所有数据都在**电池层面**进行划分，同一块电池的不同循环不会出现在多个集合中。划分固定使用 <code>split_seed: 1</code>，训练种子 1–5 共用完全相同的训练、验证和测试电池；不同训练种子只改变模型初始化和优化过程。
 
 | 数据域 | 训练集 | 验证集 | 测试集 | 划分方式 |
-|:---:|:---:|:---:|:---:|:---:|
+|---|---|---|---|---|
 | 锂离子 | 70% | 10% | 20% | 固定的电池级随机划分 |
 | CALB | 60% | 20% | 20% | 固定的电池级随机划分 |
 | Na-ion | 60% | 20% | 20% | 固定的电池级随机划分 |
@@ -50,7 +81,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 **Four-Level** 用来衡量测试分布逐步偏离训练池时的不同泛化能力。各层级代表不同类型的分布偏移，并不保证所有指标一定从 L1 到 L4 单调变差。训练池包括 HUST 第 1–7、10 批，MATR 第 1–3 批，以及 RWTH、SDU、Stanford、Tongji、ISU-ILCC、MICH、CALB 和 XJTU；每种正极材料分组固定抽取 8% 作为验证集。下列测试电池固定隔离，不参与训练和验证。
 
 | 层级 | 泛化设置 | 固定测试集 |
-|:---:|:---:|:---:|
+|---|---|---|
 | L1 | 相同化学体系、相同数据集，泛化到未见批次 | HUST 第 8–9 批 |
 | L2 | 相同化学体系，泛化到未见批次/工况分布 | MATR 第 4 批 |
 | L3 | 泛化到未见的锂离子正极材料与数据集分布 | CALCE、HNEI |
@@ -59,7 +90,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 ## 模型
 
 | 类型 | 模型 |
-|:---:|:---:|
+|---|---|
 | MLP / 线性 | MLP、DLinear |
 | 循环网络 | GRU、BiGRU、LSTM、BiLSTM |
 | 卷积网络 | CNN、MICN |
@@ -1109,3 +1140,10 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
     ├── tests/                  回归测试
     ├── requirements.txt
     └── run_<划分>.sh           每个数据划分的全量运行入口
+
+## Acknowledgement
+
+本项目基于并受益于以下开源仓库：
+
+- [Time-Series-Library](https://github.com/thuml/Time-Series-Library)
+- [BatteryML](https://github.com/microsoft/BatteryML)

@@ -1,16 +1,23 @@
 <p align="center">
-  <img src="asset/logo.svg" alt="BatteryBench logo" width="520">
+  <a href="https://github.com/LMDHQ-0420/BatteryBench"><img src="asset/logo.svg" alt="BatteryBench logo" width="520"></a>
 </p>
 
 <h1 align="center">BatteryBench</h1>
 
-<p align="center">
-  A unified benchmark for battery lifetime and state-of-health prediction across chemistries and generalization levels.
-</p>
+<p align="center"><strong>A unified benchmark for battery lifetime and state-of-health prediction across chemistries and generalization levels.</strong></p>
 
 <p align="center">
-  <a href="README-ZH.md">中文</a>
+  <a href="https://www.python.org/"><img alt="Python 3.11" src="https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white"></a>
+  <a href="https://pytorch.org/"><img alt="PyTorch 2.12.0" src="https://img.shields.io/badge/PyTorch-2.12.0-EE4C2C?style=flat-square&logo=pytorch&logoColor=white"></a>
+  <img alt="CUDA 12.6" src="https://img.shields.io/badge/CUDA-12.6-76B900?style=flat-square&logo=nvidia&logoColor=white">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/License-MIT-2ea44f?style=flat-square"></a>
+  <img alt="1,125 completed experiments" src="https://img.shields.io/badge/Experiments-1%2C125-8A2BE2?style=flat-square">
+  <a href="https://github.com/LMDHQ-0420/BatteryBench/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/LMDHQ-0420/BatteryBench?style=flat-square&logo=github"></a>
 </p>
+
+<p align="center">🔋 Multi-chemistry &nbsp;·&nbsp; 📈 SOH & RUL &nbsp;·&nbsp; 🧭 Four-Level generalization &nbsp;·&nbsp; 🧪 Five seeds</p>
+
+<p align="center"><a href="README-ZH.md">中文</a> · <a href="#raw-datasets">Raw datasets</a> · <a href="#input-protocol">Input protocol</a> · <a href="#results">Results</a> · <a href="#quick-start">Quick start</a></p>
 
 ## News
 
@@ -26,10 +33,34 @@ BatteryBench provides a shared training and evaluation interface for battery lif
 
 All tasks now use only the complete positive-current charge segment. Every curve is linearly resampled to 400 points. Voltage is divided by the maximum voltage of that charge segment; current and charge capacity are divided by nominal cell capacity. Discharge capacity is used only to construct SOH, EOL, and RUL labels and is never exposed as a model input.
 
+### Raw Datasets
+
+The table below provides one download entry for every raw dataset used by this project. Please follow each source license and cite the corresponding dataset publication.
+
+| Dataset | Raw data |
+|---|---|
+| CALB | [Download](https://zenodo.org/records/17960956) |
+| CALCE | [Download](https://calce.umd.edu/battery-data) |
+| HNEI | [Download](https://www.batteryarchive.org/index.html) |
+| HUST | [Download](https://data.mendeley.com/datasets/nsc7hnsg4s/2) |
+| ISU-ILCC | [Download](https://iastate.figshare.com/articles/dataset/_b_ISU-ILCC_Battery_Aging_Dataset_b_/22582234) |
+| MATR | [Download](https://data.matr.io/1/projects/5c48dd2bc625d700019f3204) |
+| MICH | [Download](https://www.batteryarchive.org/index.html) |
+| MICH-EXP | [Download](https://www.batteryarchive.org/index.html) |
+| RWTH | [Download](https://publications.rwth-aachen.de/record/818642/files/Rawdata.zip) |
+| SDU | [Download](https://zenodo.org/records/14859405) |
+| SNL | [Download](https://www.batteryarchive.org/index.html) |
+| Stanford | [Download](https://data.matr.io/8/) |
+| Tongji | [Download](https://zenodo.org/records/6405084) |
+| UL-PUR | [Download](https://www.batteryarchive.org/index.html) |
+| XJTU | [Download](https://zenodo.org/records/10963339) |
+| Na-ion | [Download](https://zenodo.org/records/17960956) |
+| Zn-ion | [Download](https://zenodo.org/records/17960956) |
+
 ## Input Protocol
 
 | Task | Observed input | Tensor shape | Channels | Target |
-|:---:|:---:|:---:|:---:|:---:|
+|---|---|---|---|---|
 | SOH Point | Complete charge curve of the current cycle | <code>[B, 1, 2, 400]</code> | V, I | Current-cycle SOH |
 | SOH Trajectory | Complete charge curves from cycle 1 through cycle u | <code>[B, S, 3, 400]</code> | V, I, Q<sub>charge</sub> | SOH from cycle u+1 to EOL |
 | RUL | Complete charge curves from cycle 1 through cycle u | <code>[B, S, 3, 400]</code> | V, I, Q<sub>charge</sub> | Battery lifetime/EOL |
@@ -41,7 +72,7 @@ Unobserved history positions are zero-filled and excluded through <code>curve_at
 All splits are made at the **battery level**, so cycles from one battery never appear in more than one split. The split is fixed with <code>split_seed: 1</code> and shared by training seeds 1–5; those seeds change model initialization and optimization, not the train/validation/test batteries.
 
 | Domain | Training | Validation | Test | Split rule |
-|:---:|:---:|:---:|:---:|:---:|
+|---|---|---|---|---|
 | Li-ion | 70% | 10% | 20% | Fixed battery-level random split |
 | CALB | 60% | 20% | 20% | Fixed battery-level random split |
 | Na-ion | 60% | 20% | 20% | Fixed battery-level random split |
@@ -50,7 +81,7 @@ All splits are made at the **battery level**, so cycles from one battery never a
 The **Four-Level** split measures different forms of generalization as the test distribution moves away from the training pool. The levels describe distinct distribution shifts rather than a guarantee that every metric increases monotonically from L1 to L4. Its training pool contains HUST batches 1–7 and 10, MATR batches 1–3, RWTH, SDU, Stanford, Tongji, ISU-ILCC, MICH, CALB, and XJTU. Eight percent of each cathode group is held out for validation. All test batteries below are fixed and excluded from training and validation.
 
 | Level | Generalization setting | Fixed test set |
-|:---:|:---:|:---:|
+|---|---|---|
 | L1 | Same chemistry and dataset, unseen batches | HUST batches 8–9 |
 | L2 | Same chemistry under an unseen batch/protocol distribution | MATR batch 4 |
 | L3 | Unseen Li-ion cathode and dataset distributions | CALCE and HNEI |
@@ -59,7 +90,7 @@ The **Four-Level** split measures different forms of generalization as the test 
 ## Models
 
 | Family | Models |
-|:---:|:---:|
+|---|---|
 | MLP / linear | MLP, DLinear |
 | Recurrent | GRU, BiGRU, LSTM, BiLSTM |
 | Convolutional | CNN, MICN |
@@ -1109,3 +1140,10 @@ Each script covers all tasks, models, and seeds 1–5 for its split. Ordinary mo
     ├── tests/                  Regression tests
     ├── requirements.txt
     └── run_<split>.sh          Full benchmark entry points for each split
+
+## Acknowledgement
+
+This repo is constructed based on the following repos:
+
+- [Time-Series-Library](https://github.com/thuml/Time-Series-Library)
+- [BatteryML](https://github.com/microsoft/BatteryML)
