@@ -1,0 +1,12 @@
+{
+  "domain": "li_ion",
+  "task": "rul",
+  "model": "itransformer",
+  "n_samples": 14000,
+  "n_batteries": 140,
+  "mae": 199.05382387651716,
+  "mse": 174766.04689692546,
+  "rmse": 418.0502923057529,
+  "mape": 0.4189075259357742,
+  "acc15": 0.442
+}
