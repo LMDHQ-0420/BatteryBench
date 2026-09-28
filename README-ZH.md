@@ -35,27 +35,9 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 
 ### 原始数据集
 
-下表给出本项目使用的每个原始数据集的下载入口。使用数据时请遵守原始数据源的许可条款，并引用对应的数据集论文。
+下列数据集名称直接链接到对应的原始数据源。使用数据时请遵守原始数据源的许可条款，并引用对应的数据集论文。
 
-| 数据集 | 原始数据下载 |
-|---|---|
-| CALB | [下载](https://zenodo.org/records/17960956) |
-| CALCE | [下载](https://calce.umd.edu/battery-data) |
-| HNEI | [下载](https://www.batteryarchive.org/index.html) |
-| HUST | [下载](https://data.mendeley.com/datasets/nsc7hnsg4s/2) |
-| ISU-ILCC | [下载](https://iastate.figshare.com/articles/dataset/_b_ISU-ILCC_Battery_Aging_Dataset_b_/22582234) |
-| MATR | [下载](https://data.matr.io/1/projects/5c48dd2bc625d700019f3204) |
-| MICH | [下载](https://www.batteryarchive.org/index.html) |
-| MICH-EXP | [下载](https://www.batteryarchive.org/index.html) |
-| RWTH | [下载](https://publications.rwth-aachen.de/record/818642/files/Rawdata.zip) |
-| SDU | [下载](https://zenodo.org/records/14859405) |
-| SNL | [下载](https://www.batteryarchive.org/index.html) |
-| Stanford | [下载](https://data.matr.io/8/) |
-| Tongji | [下载](https://zenodo.org/records/6405084) |
-| UL-PUR | [下载](https://www.batteryarchive.org/index.html) |
-| XJTU | [下载](https://zenodo.org/records/10963339) |
-| Na-ion | [下载](https://zenodo.org/records/17960956) |
-| Zn-ion | [下载](https://zenodo.org/records/17960956) |
+**[CALB](https://zenodo.org/records/17960956)** · **[CALCE](https://calce.umd.edu/battery-data)** · **[HNEI](https://www.batteryarchive.org/index.html)** · **[HUST](https://data.mendeley.com/datasets/nsc7hnsg4s/2)** · **[ISU-ILCC](https://iastate.figshare.com/articles/dataset/_b_ISU-ILCC_Battery_Aging_Dataset_b_/22582234)** · **[MATR](https://data.matr.io/1/projects/5c48dd2bc625d700019f3204)** · **[MICH](https://www.batteryarchive.org/index.html)** · **[MICH-EXP](https://www.batteryarchive.org/index.html)** · **[RWTH](https://publications.rwth-aachen.de/record/818642/files/Rawdata.zip)** · **[SDU](https://zenodo.org/records/14859405)** · **[SNL](https://www.batteryarchive.org/index.html)** · **[Stanford](https://data.matr.io/8/)** · **[Tongji](https://zenodo.org/records/6405084)** · **[UL-PUR](https://www.batteryarchive.org/index.html)** · **[XJTU](https://zenodo.org/records/10963339)** · **[Na-ion](https://zenodo.org/records/17960956)** · **[Zn-ion](https://zenodo.org/records/17960956)**
 
 ## 输入方案
 

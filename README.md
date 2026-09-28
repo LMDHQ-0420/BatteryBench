@@ -35,27 +35,9 @@ All tasks now use only the complete positive-current charge segment. Every curve
 
 ### Raw Datasets
 
-The table below provides one download entry for every raw dataset used by this project. Please follow each source license and cite the corresponding dataset publication.
+The dataset names below link directly to their raw-data sources. Please follow each source license and cite the corresponding dataset publication.
 
-| Dataset | Raw data |
-|---|---|
-| CALB | [Download](https://zenodo.org/records/17960956) |
-| CALCE | [Download](https://calce.umd.edu/battery-data) |
-| HNEI | [Download](https://www.batteryarchive.org/index.html) |
-| HUST | [Download](https://data.mendeley.com/datasets/nsc7hnsg4s/2) |
-| ISU-ILCC | [Download](https://iastate.figshare.com/articles/dataset/_b_ISU-ILCC_Battery_Aging_Dataset_b_/22582234) |
-| MATR | [Download](https://data.matr.io/1/projects/5c48dd2bc625d700019f3204) |
-| MICH | [Download](https://www.batteryarchive.org/index.html) |
-| MICH-EXP | [Download](https://www.batteryarchive.org/index.html) |
-| RWTH | [Download](https://publications.rwth-aachen.de/record/818642/files/Rawdata.zip) |
-| SDU | [Download](https://zenodo.org/records/14859405) |
-| SNL | [Download](https://www.batteryarchive.org/index.html) |
-| Stanford | [Download](https://data.matr.io/8/) |
-| Tongji | [Download](https://zenodo.org/records/6405084) |
-| UL-PUR | [Download](https://www.batteryarchive.org/index.html) |
-| XJTU | [Download](https://zenodo.org/records/10963339) |
-| Na-ion | [Download](https://zenodo.org/records/17960956) |
-| Zn-ion | [Download](https://zenodo.org/records/17960956) |
+**[CALB](https://zenodo.org/records/17960956)** · **[CALCE](https://calce.umd.edu/battery-data)** · **[HNEI](https://www.batteryarchive.org/index.html)** · **[HUST](https://data.mendeley.com/datasets/nsc7hnsg4s/2)** · **[ISU-ILCC](https://iastate.figshare.com/articles/dataset/_b_ISU-ILCC_Battery_Aging_Dataset_b_/22582234)** · **[MATR](https://data.matr.io/1/projects/5c48dd2bc625d700019f3204)** · **[MICH](https://www.batteryarchive.org/index.html)** · **[MICH-EXP](https://www.batteryarchive.org/index.html)** · **[RWTH](https://publications.rwth-aachen.de/record/818642/files/Rawdata.zip)** · **[SDU](https://zenodo.org/records/14859405)** · **[SNL](https://www.batteryarchive.org/index.html)** · **[Stanford](https://data.matr.io/8/)** · **[Tongji](https://zenodo.org/records/6405084)** · **[UL-PUR](https://www.batteryarchive.org/index.html)** · **[XJTU](https://zenodo.org/records/10963339)** · **[Na-ion](https://zenodo.org/records/17960956)** · **[Zn-ion](https://zenodo.org/records/17960956)**
 
 ## Input Protocol
 
