@@ -1,0 +1,11 @@
+{
+  "domain": "li_ion",
+  "task": "soh_traj",
+  "model": "itransformer",
+  "n_samples": 19059,
+  "n_batteries": 192,
+  "mae": 0.024659042136149785,
+  "mse": 0.0011264768165768226,
+  "rmse": 0.03356302752400061,
+  "mape": 0.026983696945584692
+}
