@@ -16,7 +16,7 @@ spec.loader.exec_module(pipeline)
 
 class PipelineTests(unittest.TestCase):
     def test_gpu_slot_limits_and_wait_for_all_jobs(self):
-        for gpu_slots in ({0: 2, 1: 3, 2: 3, 3: 3}, {1: 1, 2: 1, 3: 1}):
+        for gpu_slots in ({0: 2, 1: 3, 2: 3, 3: 3}, {0: 1, 1: 1, 2: 1, 3: 1}):
             with self.subTest(gpu_slots=gpu_slots):
                 active = {gpu: 0 for gpu in gpu_slots}
                 maximum = dict(active)
@@ -139,7 +139,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual([len(queue) for _, queue, _ in phases], [1, 1, 1, 12, 60, 75])
         self.assertTrue(all(slots == {0: 2, 1: 3, 2: 3, 3: 3}
                             for _, _, slots in phases[:-1]))
-        self.assertEqual(phases[-1][2], {1: 1, 2: 1, 3: 1})
+        self.assertEqual(phases[-1][2], {0: 1, 1: 1, 2: 1, 3: 1})
         self.assertTrue(all(job['model'] != 'batlinet'
                             for _, queue, _ in phases[:-1] for job in queue))
         self.assertTrue(all(job['model'] == 'batlinet' for job in phases[-1][1]))

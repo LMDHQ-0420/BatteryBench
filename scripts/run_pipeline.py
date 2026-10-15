@@ -280,7 +280,7 @@ def build_jobs(models, domains=DOMAINS):
 
 def make_phases(jobs, gpus, domains=DOMAINS):
     normal_slots = {gpu: 2 if gpu == 0 else 3 for gpu in gpus}
-    batlinet_slots = {gpu: 1 for gpu in gpus if gpu != 0}
+    batlinet_slots = {gpu: 1 for gpu in gpus}
     regular = [job for job in jobs if job['model'] != 'batlinet']
     batlinet = [job for job in jobs if job['model'] == 'batlinet']
 
@@ -345,7 +345,7 @@ def main():
 
     say(f'总计 {len(jobs)}；已完成 {len(finished)}；待运行 {len(pending)}')
     say('普通模型槽位 GPU0=2、GPU1=3、GPU2=3、GPU3=3；'
-        'BatLiNet 槽位 GPU1=1、GPU2=1、GPU3=1')
+        'BatLiNet 槽位 GPU0=1、GPU1=1、GPU2=1、GPU3=1')
     for phase, queue, slots in phases:
         if queue:
             say(f'计划 {phase}: {len(queue)} 个实验，slots={slots}')
