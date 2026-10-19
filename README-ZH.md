@@ -11,7 +11,7 @@
   <a href="https://pytorch.org/"><img alt="PyTorch 2.12.0" src="https://img.shields.io/badge/PyTorch-2.12.0-EE4C2C?style=flat-square&logo=pytorch&logoColor=white"></a>
   <img alt="CUDA 12.6" src="https://img.shields.io/badge/CUDA-12.6-76B900?style=flat-square&logo=nvidia&logoColor=white">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/License-MIT-2ea44f?style=flat-square"></a>
-  <img alt="1,125 completed experiments" src="https://img.shields.io/badge/Experiments-1%2C125-8A2BE2?style=flat-square">
+  <img alt="1,200 completed experiments" src="https://img.shields.io/badge/Experiments-1%2C200-8A2BE2?style=flat-square">
   <a href="https://github.com/LMDHQ-0420/BatteryBench/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/LMDHQ-0420/BatteryBench?style=flat-square&logo=github"></a>
 </p>
 
@@ -69,11 +69,11 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | 循环网络 | GRU、BiGRU、LSTM、BiLSTM |
 | 卷积网络 | CNN、MICN |
 | Transformer / 混合器 | Transformer、PatchTST、Autoformer、iTransformer、TimeMixer |
-| 电池专用模型 | IC2ML、Severson |
+| 电池专用模型 | BatLiNet、IC2ML、Severson |
 
 ## 结果
 
-以下汇总覆盖 5 个数据域、3 个任务、15 个模型和种子 1–5，共 1125 个完整实验。所有数值均为五个种子的**均值 ± 总体标准差**；粗体表示对应列的最优均值。RMSE、MAE 和 MAPE 均越低越好，MAPE 以百分数表示。
+以下汇总覆盖 5 个数据域、3 个任务、16 个模型和种子 1–5，共 1,200 个完整实验。所有数值均为五个种子的**均值 ± 总体标准差**；粗体表示对应列的最优均值。RMSE、MAE 和 MAPE 均越低越好，MAPE 以百分数表示。
 
 ### 四个数据集
 
@@ -84,6 +84,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | Model | RMSE | MAE | MAPE |
 |:---:|:---:|:---:|:---:|
 | Autoformer | 0.0436 ± 0.0016 | 0.0349 ± 0.0010 | 3.86 ± 0.12% |
+| BatLiNet | 0.0470 ± 0.0007 | 0.0381 ± 0.0009 | 4.10 ± 0.09% |
 | BiGRU | 0.0283 ± 0.0007 | 0.0200 ± 0.0005 | 2.22 ± 0.06% |
 | BiLSTM | 0.0283 ± 0.0005 | 0.0202 ± 0.0002 | 2.24 ± 0.02% |
 | CNN | 0.0308 ± 0.0004 | 0.0226 ± 0.0003 | 2.48 ± 0.03% |
@@ -104,6 +105,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | Model | RMSE | MAE | MAPE |
 |:---:|:---:|:---:|:---:|
 | Autoformer | 0.3713 ± 0.0002 | 0.3331 ± 0.0003 | 352.28 ± 1.38% |
+| BatLiNet | 0.1656 ± 0.0157 | 0.1417 ± 0.0158 | 189.28 ± 18.02% |
 | BiGRU | **0.0729 ± 0.0057** | **0.0481 ± 0.0031** | 17.00 ± 1.59% |
 | BiLSTM | 0.0757 ± 0.0079 | 0.0484 ± 0.0031 | **16.71 ± 1.51%** |
 | CNN | 0.0781 ± 0.0025 | 0.0513 ± 0.0018 | 20.59 ± 1.92% |
@@ -124,6 +126,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | Model | RMSE | MAE | MAPE |
 |:---:|:---:|:---:|:---:|
 | Autoformer | 494.1630 ± 34.3603 | 283.3882 ± 14.6077 | 63.75 ± 5.26% |
+| BatLiNet | 433.8485 ± 19.4159 | 249.2227 ± 13.9000 | 35.24 ± 1.39% |
 | BiGRU | **348.7108 ± 16.5302** | 173.5165 ± 6.5658 | 35.48 ± 2.67% |
 | BiLSTM | 363.8498 ± 19.4175 | 180.3630 ± 8.3527 | 37.74 ± 2.58% |
 | CNN | 363.2264 ± 21.7098 | **172.1728 ± 4.5653** | 36.50 ± 2.38% |
@@ -146,6 +149,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | Model | RMSE | MAE | MAPE |
 |:---:|:---:|:---:|:---:|
 | Autoformer | 0.0062 ± 0.0003 | 0.0045 ± 0.0002 | 0.47 ± 0.02% |
+| BatLiNet | 0.0152 ± 0.0004 | 0.0124 ± 0.0004 | 1.27 ± 0.04% |
 | BiGRU | **0.0051 ± 0.0004** | 0.0037 ± 0.0002 | 0.39 ± 0.02% |
 | BiLSTM | 0.0057 ± 0.0003 | 0.0041 ± 0.0002 | 0.43 ± 0.02% |
 | CNN | 0.0055 ± 0.0004 | 0.0042 ± 0.0003 | 0.43 ± 0.03% |
@@ -166,6 +170,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | Model | RMSE | MAE | MAPE |
 |:---:|:---:|:---:|:---:|
 | Autoformer | 0.0273 ± 0.0007 | 0.0273 ± 0.0007 | 2.73 ± 0.07% |
+| BatLiNet | 0.0058 ± 0.0027 | 0.0054 ± 0.0028 | 0.54 ± 0.29% |
 | BiGRU | 0.0016 ± 0.0002 | 0.0013 ± 0.0001 | 0.13 ± 0.01% |
 | BiLSTM | 0.0015 ± 0.0002 | 0.0012 ± 0.0002 | 0.12 ± 0.02% |
 | CNN | 0.0018 ± 0.0003 | 0.0015 ± 0.0002 | 0.15 ± 0.02% |
@@ -186,6 +191,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | Model | RMSE | MAE | MAPE |
 |:---:|:---:|:---:|:---:|
 | Autoformer | 183.2930 ± 5.0500 | 164.2061 ± 3.2385 | 14.04 ± 0.27% |
+| BatLiNet | 287.6398 ± 49.5520 | 249.2969 ± 46.3183 | 19.98 ± 3.81% |
 | BiGRU | 160.1677 ± 10.0058 | 135.5630 ± 4.5983 | 12.58 ± 0.58% |
 | BiLSTM | 166.7667 ± 11.5042 | 140.5816 ± 3.4163 | 13.05 ± 0.14% |
 | CNN | 168.2221 ± 11.3398 | 148.2543 ± 7.6671 | 13.28 ± 0.47% |
@@ -208,6 +214,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | Model | RMSE | MAE | MAPE |
 |:---:|:---:|:---:|:---:|
 | Autoformer | 0.0279 ± 0.0005 | 0.0191 ± 0.0006 | 2.23 ± 0.09% |
+| BatLiNet | 0.0305 ± 0.0012 | 0.0204 ± 0.0004 | 2.33 ± 0.05% |
 | BiGRU | 0.0340 ± 0.0044 | 0.0253 ± 0.0027 | 2.92 ± 0.29% |
 | BiLSTM | 0.0332 ± 0.0062 | 0.0228 ± 0.0041 | 2.62 ± 0.45% |
 | CNN | 0.0257 ± 0.0004 | 0.0189 ± 0.0008 | 2.21 ± 0.09% |
@@ -228,6 +235,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | Model | RMSE | MAE | MAPE |
 |:---:|:---:|:---:|:---:|
 | Autoformer | 0.0521 ± 0.0002 | 0.0394 ± 0.0001 | 4.67 ± 0.01% |
+| BatLiNet | 0.0468 ± 0.0017 | 0.0341 ± 0.0015 | 3.95 ± 0.19% |
 | BiGRU | 0.0439 ± 0.0019 | 0.0324 ± 0.0014 | 3.78 ± 0.14% |
 | BiLSTM | 0.0455 ± 0.0026 | 0.0335 ± 0.0018 | 3.90 ± 0.17% |
 | CNN | 0.0497 ± 0.0013 | 0.0371 ± 0.0004 | 4.28 ± 0.06% |
@@ -248,6 +256,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | Model | RMSE | MAE | MAPE |
 |:---:|:---:|:---:|:---:|
 | Autoformer | 31.5470 ± 1.5705 | 27.9832 ± 0.5732 | 17.94 ± 0.66% |
+| BatLiNet | 30.7349 ± 1.6170 | 28.5766 ± 1.2444 | 16.97 ± 0.43% |
 | BiGRU | 31.1202 ± 1.3051 | 29.2437 ± 0.7538 | 17.47 ± 0.41% |
 | BiLSTM | 28.6130 ± 0.8142 | 27.6486 ± 0.7217 | 16.71 ± 0.47% |
 | CNN | 32.6544 ± 1.7111 | 30.2983 ± 1.0210 | 18.88 ± 0.89% |
@@ -270,6 +279,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | Model | RMSE | MAE | MAPE |
 |:---:|:---:|:---:|:---:|
 | Autoformer | 0.0557 ± 0.0006 | 0.0431 ± 0.0004 | 956.91 ± 4.89% |
+| BatLiNet | 0.0806 ± 0.0024 | 0.0639 ± 0.0020 | 944.11 ± 7.82% |
 | BiGRU | 0.0573 ± 0.0006 | 0.0429 ± 0.0007 | 957.95 ± 7.12% |
 | BiLSTM | 0.0569 ± 0.0006 | 0.0435 ± 0.0006 | 955.80 ± 7.19% |
 | CNN | 0.0550 ± 0.0016 | 0.0409 ± 0.0004 | 964.53 ± 12.80% |
@@ -290,6 +300,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | Model | RMSE | MAE | MAPE |
 |:---:|:---:|:---:|:---:|
 | Autoformer | 0.1583 ± 0.0002 | 0.1302 ± 0.0007 | 723.55 ± 3.37% |
+| BatLiNet | 0.0932 ± 0.0029 | 0.0778 ± 0.0021 | 641.68 ± 23.44% |
 | BiGRU | 0.1295 ± 0.0152 | 0.1026 ± 0.0161 | 624.44 ± 158.36% |
 | BiLSTM | 0.1192 ± 0.0225 | 0.0929 ± 0.0216 | 656.05 ± 37.49% |
 | CNN | 0.0872 ± 0.0064 | 0.0655 ± 0.0051 | 390.92 ± 149.05% |
@@ -310,6 +321,7 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | Model | RMSE | MAE | MAPE |
 |:---:|:---:|:---:|:---:|
 | Autoformer | 268.8958 ± 24.9171 | 186.5861 ± 23.2360 | 90.38 ± 14.73% |
+| BatLiNet | 414.4826 ± 0.5985 | 263.5925 ± 0.9001 | 81.85 ± 1.16% |
 | BiGRU | 400.3597 ± 1.2082 | 319.3447 ± 14.6099 | 145.00 ± 16.48% |
 | BiLSTM | 400.5899 ± 1.8732 | 317.4677 ± 16.2167 | 142.88 ± 18.30% |
 | CNN | 208.9290 ± 12.3716 | 132.0302 ± 15.2837 | 57.50 ± 10.82% |
@@ -364,6 +376,21 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap>0.0850&nbsp;±&nbsp;0.0038</td>
 <td align="center" nowrap>0.0727&nbsp;±&nbsp;0.0029</td>
 <td align="center" nowrap>128.07&nbsp;±&nbsp;1.59%</td>
+</tr>
+<tr>
+<td align="center" nowrap>BatLiNet</td>
+<td align="center" nowrap>0.0718&nbsp;±&nbsp;0.0042</td>
+<td align="center" nowrap>0.0640&nbsp;±&nbsp;0.0040</td>
+<td align="center" nowrap>6.54&nbsp;±&nbsp;0.41%</td>
+<td align="center" nowrap>0.0346&nbsp;±&nbsp;0.0039</td>
+<td align="center" nowrap>0.0284&nbsp;±&nbsp;0.0032</td>
+<td align="center" nowrap>3.07&nbsp;±&nbsp;0.34%</td>
+<td align="center" nowrap>0.0486&nbsp;±&nbsp;0.0037</td>
+<td align="center" nowrap>0.0443&nbsp;±&nbsp;0.0039</td>
+<td align="center" nowrap>5.16&nbsp;±&nbsp;0.47%</td>
+<td align="center" nowrap>0.0849&nbsp;±&nbsp;0.0042</td>
+<td align="center" nowrap>0.0745&nbsp;±&nbsp;0.0040</td>
+<td align="center" nowrap>126.54&nbsp;±&nbsp;0.75%</td>
 </tr>
 <tr>
 <td align="center" nowrap>BiGRU</td>
@@ -613,6 +640,21 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap><strong>114.78&nbsp;±&nbsp;0.11%</strong></td>
 </tr>
 <tr>
+<td align="center" nowrap>BatLiNet</td>
+<td align="center" nowrap>0.0987&nbsp;±&nbsp;0.0409</td>
+<td align="center" nowrap>0.0904&nbsp;±&nbsp;0.0402</td>
+<td align="center" nowrap>9.25&nbsp;±&nbsp;3.98%</td>
+<td align="center" nowrap>0.1133&nbsp;±&nbsp;0.0161</td>
+<td align="center" nowrap>0.0766&nbsp;±&nbsp;0.0259</td>
+<td align="center" nowrap>10.49&nbsp;±&nbsp;2.68%</td>
+<td align="center" nowrap><strong>0.1410&nbsp;±&nbsp;0.0182</strong></td>
+<td align="center" nowrap><strong>0.1156&nbsp;±&nbsp;0.0194</strong></td>
+<td align="center" nowrap><strong>17.38&nbsp;±&nbsp;1.89%</strong></td>
+<td align="center" nowrap>0.2230&nbsp;±&nbsp;0.0450</td>
+<td align="center" nowrap>0.1780&nbsp;±&nbsp;0.0444</td>
+<td align="center" nowrap>129.64&nbsp;±&nbsp;13.54%</td>
+</tr>
+<tr>
 <td align="center" nowrap>BiGRU</td>
 <td align="center" nowrap><strong>0.0438&nbsp;±&nbsp;0.0013</strong></td>
 <td align="center" nowrap>0.0316&nbsp;±&nbsp;0.0044</td>
@@ -755,8 +797,8 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap>0.1130&nbsp;±&nbsp;0.0084</td>
 <td align="center" nowrap>0.0593&nbsp;±&nbsp;0.0073</td>
 <td align="center" nowrap>8.98&nbsp;±&nbsp;0.90%</td>
-<td align="center" nowrap><strong>0.1601&nbsp;±&nbsp;0.0192</strong></td>
-<td align="center" nowrap><strong>0.1219&nbsp;±&nbsp;0.0209</strong></td>
+<td align="center" nowrap>0.1601&nbsp;±&nbsp;0.0192</td>
+<td align="center" nowrap>0.1219&nbsp;±&nbsp;0.0209</td>
 <td align="center" nowrap>22.26&nbsp;±&nbsp;3.16%</td>
 <td align="center" nowrap>0.6440&nbsp;±&nbsp;0.3080</td>
 <td align="center" nowrap>0.6155&nbsp;±&nbsp;0.3078</td>
@@ -787,7 +829,7 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap>21.49&nbsp;±&nbsp;0.00%</td>
 <td align="center" nowrap>0.1687&nbsp;±&nbsp;0.0000</td>
 <td align="center" nowrap>0.1488&nbsp;±&nbsp;0.0000</td>
-<td align="center" nowrap><strong>21.03&nbsp;±&nbsp;0.00%</strong></td>
+<td align="center" nowrap>21.03&nbsp;±&nbsp;0.00%</td>
 <td align="center" nowrap>0.6932&nbsp;±&nbsp;0.0000</td>
 <td align="center" nowrap>0.6589&nbsp;±&nbsp;0.0000</td>
 <td align="center" nowrap>214.22&nbsp;±&nbsp;0.00%</td>
@@ -858,6 +900,21 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap>497.2503&nbsp;±&nbsp;25.7991</td>
 <td align="center" nowrap>470.0591&nbsp;±&nbsp;25.1792</td>
 <td align="center" nowrap>274.29&nbsp;±&nbsp;18.45%</td>
+</tr>
+<tr>
+<td align="center" nowrap>BatLiNet</td>
+<td align="center" nowrap>-</td>
+<td align="center" nowrap>-</td>
+<td align="center" nowrap>-</td>
+<td align="center" nowrap>267.8360&nbsp;±&nbsp;72.8579</td>
+<td align="center" nowrap>238.5640&nbsp;±&nbsp;74.2396</td>
+<td align="center" nowrap>29.72&nbsp;±&nbsp;9.26%</td>
+<td align="center" nowrap>333.6476&nbsp;±&nbsp;43.5252</td>
+<td align="center" nowrap>324.9327&nbsp;±&nbsp;42.7147</td>
+<td align="center" nowrap>110.42&nbsp;±&nbsp;13.37%</td>
+<td align="center" nowrap>724.4295&nbsp;±&nbsp;535.4825</td>
+<td align="center" nowrap>654.1763&nbsp;±&nbsp;558.1718</td>
+<td align="center" nowrap>359.43&nbsp;±&nbsp;340.17%</td>
 </tr>
 <tr>
 <td align="center" nowrap>BiGRU</td>
@@ -1095,7 +1152,7 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
     bash run_zn_ion.sh
     bash run_four_level.sh
 
-每个脚本覆盖对应划分的全部任务、模型和种子 1–5。普通模型在 GPU 0 使用 2 个槽，在 GPU 1–3 各使用 3 个槽。恢复时会同时检查完整权重和测评产物，已经完成的实验会自动跳过。
+每个脚本覆盖对应划分的全部任务、模型和种子 1–5。普通模型在 GPU 0 使用 2 个槽，在 GPU 1–3 各使用 3 个槽。BatLiNet 在 GPU 0–3 各使用 1 个槽。恢复时会同时检查完整权重和测评产物，已经完成的实验会自动跳过。
 
 ## 项目结构
 

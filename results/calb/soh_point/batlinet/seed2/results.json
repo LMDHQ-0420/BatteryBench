@@ -1,0 +1,11 @@
+{
+  "domain": "calb",
+  "task": "soh_point",
+  "model": "batlinet",
+  "n_samples": 496,
+  "n_batteries": 5,
+  "mae": 0.005672279745340347,
+  "mse": 3.617422913540234e-05,
+  "rmse": 0.006014501569989182,
+  "mape": 0.005678322825961321
+}

@@ -1,0 +1,11 @@
+{
+  "domain": "na_ion",
+  "task": "soh_point",
+  "model": "batlinet",
+  "n_samples": 2402,
+  "n_batteries": 13,
+  "mae": 0.034529266334592454,
+  "mse": 0.0021949691035140625,
+  "rmse": 0.04685049736677362,
+  "mape": 0.03963758215232758
+}

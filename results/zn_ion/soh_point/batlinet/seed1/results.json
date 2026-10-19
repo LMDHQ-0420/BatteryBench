@@ -1,0 +1,11 @@
+{
+  "domain": "zn_ion",
+  "task": "soh_point",
+  "model": "batlinet",
+  "n_samples": 15582,
+  "n_batteries": 28,
+  "mae": 0.08051256390618575,
+  "mse": 0.009193443250596373,
+  "rmse": 0.0958824449552491,
+  "mape": 6.309562318574463
+}

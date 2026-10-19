@@ -13,7 +13,7 @@ DOMAINS = ('li_ion', 'calb', 'na_ion', 'zn_ion')
 TASKS = ('soh_traj', 'soh_point', 'rul')
 LEVELS = ('L1', 'L2', 'L3', 'L4')
 MODELS = (
-    ('autoformer', 'Autoformer'), ('bigru', 'BiGRU'), ('bilstm', 'BiLSTM'),
+    ('autoformer', 'Autoformer'), ('batlinet', 'BatLiNet'), ('bigru', 'BiGRU'), ('bilstm', 'BiLSTM'),
     ('cnn', 'CNN'), ('dlinear', 'DLinear'), ('gru', 'GRU'), ('ic2ml', 'IC2ML'),
     ('itransformer', 'iTransformer'), ('lstm', 'LSTM'), ('micn', 'MICN'),
     ('mlp', 'MLP'), ('patchtst', 'PatchTST'), ('severson', 'Severson'),
@@ -133,13 +133,13 @@ def results_section(summary: dict, chinese: bool) -> str:
     if chinese:
         lines = [
             '## 结果', '',
-            '以下汇总覆盖 5 个数据域、3 个任务、15 个模型和种子 1–5，共 1125 个完整实验。所有数值均为五个种子的**均值 ± 总体标准差**；粗体表示对应列的最优均值。RMSE、MAE 和 MAPE 均越低越好，MAPE 以百分数表示。', '',
+            f'以下汇总覆盖 5 个数据域、3 个任务、{len(MODELS)} 个模型和种子 1–5，共 {summary["n_experiments"]:,} 个完整实验。所有数值均为五个种子的**均值 ± 总体标准差**；粗体表示对应列的最优均值。RMSE、MAE 和 MAPE 均越低越好，MAPE 以百分数表示。', '',
             '### 四个数据集', '',
         ]
     else:
         lines = [
             '## Results', '',
-            'The complete summary covers five domains, three tasks, 15 models, and seeds 1–5: 1,125 complete experiments. Values are **mean ± population standard deviation** over five seeds. Bold marks the best mean in each metric column; lower is better for RMSE, MAE, and MAPE. MAPE is shown as a percentage.', '',
+            f'The complete summary covers five domains, three tasks, {len(MODELS)} models, and seeds 1–5: {summary["n_experiments"]:,} complete experiments. Values are **mean ± population standard deviation** over five seeds. Bold marks the best mean in each metric column; lower is better for RMSE, MAE, and MAPE. MAPE is shown as a percentage.', '',
             '### Four Datasets', '',
         ]
     for domain in DOMAINS:
