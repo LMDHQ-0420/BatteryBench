@@ -312,6 +312,10 @@ def main():
     parser.add_argument('--gpus', nargs='+', type=int, default=[0, 1, 2, 3])
     parser.add_argument('--domains', nargs='+', choices=DOMAINS, default=list(DOMAINS),
                         help='只运行指定数据划分；默认运行全部划分')
+    parser.add_argument('--models', nargs='+', help='只运行指定模型；默认运行注册表中全部模型')
+    parser.add_argument('--continuous', action='store_true',
+                        help='按原有顺序启动任务，任一槽位空出后立即运行下一个任务')
+    parser.add_argument('--slots-per-gpu', type=int, help='普通模型每张 GPU 的并发槽位')
     parser.add_argument('--job-threads', type=int, default=3)
     parser.add_argument('--config', type=Path, default=ROOT / 'configs/default.yaml')
     parser.add_argument('--results-dir', type=Path, default=ROOT / 'results')
@@ -324,6 +328,8 @@ def main():
         parser.error('批处理固定使用 GPU 0、1、2、3，且不能重复')
     if args.job_threads < 1:
         parser.error('--job-threads 必须为正整数')
+    if args.slots_per_gpu is not None and args.slots_per_gpu < 1:
+        parser.error('--slots-per-gpu 必须为正整数')
     for name in ('config', 'results_dir', 'state_dir', 'log_dir'):
         setattr(args, name, getattr(args, name).resolve())
     import yaml
@@ -337,15 +343,31 @@ def main():
                 and isinstance(x.target, ast.Name) and x.target.id == '_REGISTRY')
     models = {ast.literal_eval(k): {ast.literal_eval(m) for m in v.keys}
               for k, v in zip(node.value.keys, node.value.values)}
+    if args.models:
+        unknown = set(args.models) - set.union(*models.values())
+        if unknown:
+            parser.error(f'未知模型：{sorted(unknown)}')
+        models = {task: names.intersection(args.models) for task, names in models.items()}
     jobs = build_jobs(models, args.domains)
     finished = [job for job in jobs if result_complete(job, args, expected_sets, n_future)]
     complete_ids = {job_id(job) for job in finished}
     pending = [job for job in jobs if job_id(job) not in complete_ids]
     phases = make_phases(pending, args.gpus, args.domains)
+    if args.slots_per_gpu is not None:
+        phases = [(name, queue,
+                   slots if name == 'batlinet_all' else
+                   {gpu: args.slots_per_gpu for gpu in args.gpus})
+                  for name, queue, slots in phases]
+    if args.continuous:
+        batlinet = [(name, queue, slots) for name, queue, slots in phases
+                    if name == 'batlinet_all' and queue]
+        ordinary = [(name, queue, slots) for name, queue, slots in phases
+                    if name != 'batlinet_all' and queue]
+        phases = ([('continuous', [job for _, queue, _ in ordinary for job in queue],
+                    ordinary[0][2])] if ordinary else []) + batlinet
 
     say(f'总计 {len(jobs)}；已完成 {len(finished)}；待运行 {len(pending)}')
-    say('普通模型槽位 GPU0=2、GPU1=3、GPU2=3、GPU3=3；'
-        'BatLiNet 槽位 GPU0=1、GPU1=1、GPU2=1、GPU3=1')
+    say(f'槽位配置：{[(name, slots) for name, queue, slots in phases if queue]}')
     for phase, queue, slots in phases:
         if queue:
             say(f'计划 {phase}: {len(queue)} 个实验，slots={slots}')
