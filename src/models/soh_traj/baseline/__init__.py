@@ -4,6 +4,8 @@ from src.models.soh_traj.baseline.bigru        import BiGRU
 from src.models.soh_traj.baseline.lstm         import LSTM
 from src.models.soh_traj.baseline.bilstm       import BiLSTM
 from src.models.soh_traj.baseline.cnn          import CNN
+from src.models.soh_traj.baseline.cnn_astlstm import CNNASTLSTM
+from src.models.soh_traj.baseline.hcnn         import HCNN
 from src.models.soh_traj.baseline.dlinear      import DLinear
 from src.models.soh_traj.baseline.patchtst     import PatchTST
 from src.models.soh_traj.baseline.transformer  import Transformer
@@ -16,7 +18,7 @@ from src.models.soh_traj.baseline.batlinet     import BatLiNet
 from src.models.soh_traj.baseline.severson     import Severson
 
 __all__ = [
-    'MLP', 'GRU', 'BiGRU', 'LSTM', 'BiLSTM', 'CNN',
+    'MLP', 'GRU', 'BiGRU', 'LSTM', 'BiLSTM', 'CNN', 'CNNASTLSTM', 'HCNN',
     'DLinear', 'PatchTST', 'Transformer', 'Autoformer',
     'iTransformer', 'MICN', 'TimeMixer',
     'IC2ML', 'BatLiNet', 'Severson',

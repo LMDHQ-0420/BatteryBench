@@ -4,6 +4,8 @@ from src.models.soh_point.baseline.bigru        import BiGRU
 from src.models.soh_point.baseline.lstm         import LSTM
 from src.models.soh_point.baseline.bilstm       import BiLSTM
 from src.models.soh_point.baseline.cnn          import CNN
+from src.models.soh_point.baseline.cnn_astlstm import CNNASTLSTM
+from src.models.soh_point.baseline.hcnn         import HCNN
 from src.models.soh_point.baseline.dlinear      import DLinear
 from src.models.soh_point.baseline.patchtst     import PatchTST
 from src.models.soh_point.baseline.transformer  import Transformer
@@ -16,7 +18,7 @@ from src.models.soh_point.baseline.batlinet     import BatLiNet
 from src.models.soh_point.baseline.severson     import Severson
 
 __all__ = [
-    'MLP', 'GRU', 'BiGRU', 'LSTM', 'BiLSTM', 'CNN',
+    'MLP', 'GRU', 'BiGRU', 'LSTM', 'BiLSTM', 'CNN', 'CNNASTLSTM', 'HCNN',
     'DLinear', 'PatchTST', 'Transformer', 'Autoformer',
     'iTransformer', 'MICN', 'TimeMixer',
     'IC2ML', 'BatLiNet', 'Severson',

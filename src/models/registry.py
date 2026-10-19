@@ -17,6 +17,8 @@ from src.models.rul.baseline.bigru        import BiGRU        as RUL_BiGRU
 from src.models.rul.baseline.lstm         import LSTM         as RUL_LSTM
 from src.models.rul.baseline.bilstm       import BiLSTM       as RUL_BiLSTM
 from src.models.rul.baseline.cnn          import CNN          as RUL_CNN
+from src.models.rul.baseline.cnn_astlstm import CNNASTLSTM as RUL_CNNASTLSTM
+from src.models.rul.baseline.hcnn         import HCNN         as RUL_HCNN
 from src.models.rul.baseline.dlinear      import DLinear      as RUL_DLinear
 from src.models.rul.baseline.patchtst     import PatchTST     as RUL_PatchTST
 from src.models.rul.baseline.transformer  import Transformer  as RUL_Transformer
@@ -34,6 +36,8 @@ from src.models.soh_point.baseline.bigru        import BiGRU        as SP_BiGRU
 from src.models.soh_point.baseline.lstm         import LSTM         as SP_LSTM
 from src.models.soh_point.baseline.bilstm       import BiLSTM       as SP_BiLSTM
 from src.models.soh_point.baseline.cnn          import CNN          as SP_CNN
+from src.models.soh_point.baseline.cnn_astlstm import CNNASTLSTM as SP_CNNASTLSTM
+from src.models.soh_point.baseline.hcnn         import HCNN         as SP_HCNN
 from src.models.soh_point.baseline.dlinear      import DLinear      as SP_DLinear
 from src.models.soh_point.baseline.patchtst     import PatchTST     as SP_PatchTST
 from src.models.soh_point.baseline.transformer  import Transformer  as SP_Transformer
@@ -51,6 +55,8 @@ from src.models.soh_traj.baseline.bigru        import BiGRU        as ST_BiGRU
 from src.models.soh_traj.baseline.lstm         import LSTM         as ST_LSTM
 from src.models.soh_traj.baseline.bilstm       import BiLSTM       as ST_BiLSTM
 from src.models.soh_traj.baseline.cnn          import CNN          as ST_CNN
+from src.models.soh_traj.baseline.cnn_astlstm import CNNASTLSTM as ST_CNNASTLSTM
+from src.models.soh_traj.baseline.hcnn         import HCNN         as ST_HCNN
 from src.models.soh_traj.baseline.dlinear      import DLinear      as ST_DLinear
 from src.models.soh_traj.baseline.patchtst     import PatchTST     as ST_PatchTST
 from src.models.soh_traj.baseline.transformer  import Transformer  as ST_Transformer
@@ -113,6 +119,12 @@ _REGISTRY: dict[str, dict[str, ModelSpec]] = {
         'cnn': ModelSpec(
             build_fn=lambda cfg: RUL_CNN(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
+        'cnn_astlstm': ModelSpec(
+            build_fn=lambda cfg: RUL_CNNASTLSTM(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
+        ),
+        'hcnn': ModelSpec(
+            build_fn=lambda cfg: RUL_HCNN(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
+        ),
         'dlinear': ModelSpec(
             build_fn=lambda cfg: RUL_DLinear(cfg), dataset_cls=_RULDataset, train_fn=_rul_base,
         ),
@@ -164,6 +176,12 @@ _REGISTRY: dict[str, dict[str, ModelSpec]] = {
         'cnn': ModelSpec(
             build_fn=lambda cfg: SP_CNN(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
+        'cnn_astlstm': ModelSpec(
+            build_fn=lambda cfg: SP_CNNASTLSTM(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
+        ),
+        'hcnn': ModelSpec(
+            build_fn=lambda cfg: SP_HCNN(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
+        ),
         'dlinear': ModelSpec(
             build_fn=lambda cfg: SP_DLinear(cfg), dataset_cls=_SOHPointDataset, train_fn=_sp_base,
         ),
@@ -214,6 +232,12 @@ _REGISTRY: dict[str, dict[str, ModelSpec]] = {
         ),
         'cnn': ModelSpec(
             build_fn=lambda cfg: ST_CNN(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
+        ),
+        'cnn_astlstm': ModelSpec(
+            build_fn=lambda cfg: ST_CNNASTLSTM(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
+        ),
+        'hcnn': ModelSpec(
+            build_fn=lambda cfg: ST_HCNN(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,
         ),
         'dlinear': ModelSpec(
             build_fn=lambda cfg: ST_DLinear(cfg), dataset_cls=_SOHTrajDataset, train_fn=_st_base,

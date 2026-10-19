@@ -19,7 +19,8 @@ MODELS = (
     ('mlp', 'MLP'), ('patchtst', 'PatchTST'), ('severson', 'Severson'),
     ('timemixer', 'TimeMixer'), ('transformer', 'Transformer'),
 )
-DISPLAY = dict(MODELS)
+ADDITIONAL_MODELS = (('cnn_astlstm', 'CNN-ASTLSTM'), ('hcnn', 'HCNN'))
+DISPLAY = dict(MODELS + ADDITIONAL_MODELS)
 DOMAIN_NAMES = {
     'li_ion': ('Li-ion', '锂离子'),
     'calb': ('CALB', 'CALB'),
@@ -44,24 +45,38 @@ def load_summary(domain: str, task: str, model: str) -> dict:
     return data
 
 
+def complete_model(model: str) -> bool:
+    try:
+        return all(
+            load_summary(domain, task, model)
+            for domain in (*DOMAINS, 'four_level')
+            for task in TASKS
+        )
+    except (OSError, ValueError, KeyError):
+        return False
+
+
 def collect() -> dict:
+    models = MODELS + tuple(
+        item for item in ADDITIONAL_MODELS if complete_model(item[0])
+    )
     standard = {}
     for domain in DOMAINS:
         standard[domain] = {}
         for task in TASKS:
             standard[domain][task] = {
                 model: load_summary(domain, task, model)['statistics']
-                for model, _ in MODELS
+                for model, _ in models
             }
     four_level = {}
     for task in TASKS:
         four_level[task] = {
             model: load_summary('four_level', task, model)['statistics']
-            for model, _ in MODELS
+            for model, _ in models
         }
     return {
         'seeds': [1, 2, 3, 4, 5],
-        'n_experiments': len(MODELS) * 5 * (len(DOMAINS) + 1) * len(TASKS),
+        'n_experiments': len(models) * 5 * (len(DOMAINS) + 1) * len(TASKS),
         'metric_order': list(METRICS),
         'standard_domains': standard,
         'four_level': four_level,
@@ -85,25 +100,25 @@ def formatted(stats: dict, metric: str, best: float, nowrap: bool = False, html:
     return f'<strong>{text}</strong>' if html else f'**{text}**'
 
 
-def standard_table(records: dict) -> str:
-    best = {metric: min(value(records[model], metric)[0] for model, _ in MODELS)
+def standard_table(records: dict, models: tuple) -> str:
+    best = {metric: min(value(records[model], metric)[0] for model, _ in models)
             for metric in METRICS}
     rows = ['| Model | RMSE | MAE | MAPE |', '|:---:|:---:|:---:|:---:|']
-    for model, name in MODELS:
+    for model, name in models:
         cells = [formatted(records[model], metric, best[metric]) for metric in METRICS]
         rows.append(f"| {name} | " + ' | '.join(cells) + ' |')
     return '\n'.join(rows)
 
 
-def four_level_table(records: dict) -> str:
+def four_level_table(records: dict, models: tuple) -> str:
     best = {
         level: {
-            metric: min(value(records[model][level], metric)[0] for model, _ in MODELS
+            metric: min(value(records[model][level], metric)[0] for model, _ in models
                         if level in records[model])
             for metric in METRICS
         }
         for level in LEVELS
-        if any(level in records[model] for model, _ in MODELS)
+        if any(level in records[model] for model, _ in models)
     }
     lines = [
         '<table align="center">', '<thead>', '<tr>',
@@ -114,7 +129,7 @@ def four_level_table(records: dict) -> str:
           for _ in LEVELS],
         '</tr>', '</thead>', '<tbody>',
     ]
-    for model, name in MODELS:
+    for model, name in models:
         lines += ['<tr>', f'<td align="center" nowrap>{name}</td>']
         for level in LEVELS:
             if level not in records[model]:
@@ -130,23 +145,27 @@ def four_level_table(records: dict) -> str:
 
 
 def results_section(summary: dict, chinese: bool) -> str:
+    models = tuple(
+        (model, DISPLAY[model])
+        for model in summary['standard_domains'][DOMAINS[0]][TASKS[0]]
+    )
     if chinese:
         lines = [
             '## 结果', '',
-            f'以下汇总覆盖 5 个数据域、3 个任务、{len(MODELS)} 个模型和种子 1–5，共 {summary["n_experiments"]:,} 个完整实验。所有数值均为五个种子的**均值 ± 总体标准差**；粗体表示对应列的最优均值。RMSE、MAE 和 MAPE 均越低越好，MAPE 以百分数表示。', '',
+            f'以下汇总覆盖 5 个数据域、3 个任务、{len(models)} 个模型和种子 1–5，共 {summary["n_experiments"]:,} 个完整实验。所有数值均为五个种子的**均值 ± 总体标准差**；粗体表示对应列的最优均值。RMSE、MAE 和 MAPE 均越低越好，MAPE 以百分数表示。', '',
             '### 四个数据集', '',
         ]
     else:
         lines = [
             '## Results', '',
-            f'The complete summary covers five domains, three tasks, {len(MODELS)} models, and seeds 1–5: {summary["n_experiments"]:,} complete experiments. Values are **mean ± population standard deviation** over five seeds. Bold marks the best mean in each metric column; lower is better for RMSE, MAE, and MAPE. MAPE is shown as a percentage.', '',
+            f'The complete summary covers five domains, three tasks, {len(models)} models, and seeds 1–5: {summary["n_experiments"]:,} complete experiments. Values are **mean ± population standard deviation** over five seeds. Bold marks the best mean in each metric column; lower is better for RMSE, MAE, and MAPE. MAPE is shown as a percentage.', '',
             '### Four Datasets', '',
         ]
     for domain in DOMAINS:
         lines += [f"#### {DOMAIN_NAMES[domain][1 if chinese else 0]}", '']
         for task in TASKS:
             lines += [f"##### {TASK_NAMES[task][1 if chinese else 0]}", '',
-                      standard_table(summary['standard_domains'][domain][task]), '']
+                      standard_table(summary['standard_domains'][domain][task], models), '']
     if chinese:
         lines += [
             '### Four-Level', '',
@@ -161,7 +180,7 @@ def results_section(summary: dict, chinese: bool) -> str:
         ]
     for task in TASKS:
         lines += [f"#### {TASK_NAMES[task][1 if chinese else 0]}", '',
-                  four_level_table(summary['four_level'][task]), '']
+                  four_level_table(summary['four_level'][task], models), '']
     return '\n'.join(lines).rstrip() + '\n\n'
 
 

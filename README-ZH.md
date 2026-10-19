@@ -69,7 +69,9 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | 循环网络 | GRU、BiGRU、LSTM、BiLSTM |
 | 卷积网络 | CNN、MICN |
 | Transformer / 混合器 | Transformer、PatchTST、Autoformer、iTransformer、TimeMixer |
-| 电池专用模型 | BatLiNet、IC2ML、Severson |
+| 电池专用模型 | BatLiNet、[CNN-ASTLSTM](https://doi.org/10.1016/j.rser.2021.111843)（充电曲线适配）、[HCNN](https://doi.org/10.1016/j.apenergy.2021.116897)（V/I 适配）、IC2ML、Severson |
+
+CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结合循环差分、3D/2D 卷积、充电特征注意力与多尺度循环注意力；HCNN 的 BatteryBench 适配在三个任务中使用充电 V/I；当只观测到一个循环时，循环差分分支为零。原始实现：[CNN-ASTLSTM](https://github.com/Lipenghua-CQ/CNN-ASTLSTM)、[HCNN](https://data.mendeley.com/datasets/ms2f63ng3y/1)。
 
 ## 结果
 
@@ -1143,6 +1145,8 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 
     python scripts/train.py --domain li_ion --model gru --task rul --seed 1 --gpu 0
     python scripts/evaluate.py --domain li_ion --model gru --task rul --seed 1 --gpu 0
+
+两个新增基线分别使用 `--model cnn_astlstm` 和 `--model hcnn`。
 
 运行或恢复一个完整数据划分：
 

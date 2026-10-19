@@ -69,7 +69,9 @@ The **Four-Level** split measures different forms of generalization as the test 
 | Recurrent | GRU, BiGRU, LSTM, BiLSTM |
 | Convolutional | CNN, MICN |
 | Transformer / mixer | Transformer, PatchTST, Autoformer, iTransformer, TimeMixer |
-| Battery-specific | BatLiNet, IC2ML, Severson |
+| Battery-specific | BatLiNet, [CNN-ASTLSTM](https://doi.org/10.1016/j.rser.2021.111843) (charge-curve adaptation), [HCNN](https://doi.org/10.1016/j.apenergy.2021.116897) (V/I adaptation), IC2ML, Severson |
+
+CNN-ASTLSTM uses a charge-curve CNN and active-state-tracking LSTM cells. HCNN combines cycle differences, 3D/2D convolutions, charging-feature attention, and multiscale cycle attention. Its BatteryBench adaptation uses charge V/I in all three tasks; at one observed cycle, the cycle-difference branch is zero. Reference implementations: [CNN-ASTLSTM](https://github.com/Lipenghua-CQ/CNN-ASTLSTM) and [HCNN](https://data.mendeley.com/datasets/ms2f63ng3y/1).
 
 ## Results
 
@@ -1143,6 +1145,8 @@ Train and evaluate one experiment:
 
     python scripts/train.py --domain li_ion --model gru --task rul --seed 1 --gpu 0
     python scripts/evaluate.py --domain li_ion --model gru --task rul --seed 1 --gpu 0
+
+The new baselines use `--model cnn_astlstm` and `--model hcnn`.
 
 Run or resume a complete data split:
 

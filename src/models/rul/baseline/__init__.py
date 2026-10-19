@@ -4,6 +4,8 @@ from src.models.rul.baseline.bigru        import BiGRU
 from src.models.rul.baseline.lstm         import LSTM
 from src.models.rul.baseline.bilstm       import BiLSTM
 from src.models.rul.baseline.cnn          import CNN
+from src.models.rul.baseline.cnn_astlstm import CNNASTLSTM
+from src.models.rul.baseline.hcnn         import HCNN
 from src.models.rul.baseline.dlinear      import DLinear
 from src.models.rul.baseline.patchtst     import PatchTST
 from src.models.rul.baseline.transformer  import Transformer
@@ -16,7 +18,7 @@ from src.models.rul.baseline.batlinet     import BatLiNet
 from src.models.rul.baseline.severson     import Severson
 
 __all__ = [
-    'MLP', 'GRU', 'BiGRU', 'LSTM', 'BiLSTM', 'CNN',
+    'MLP', 'GRU', 'BiGRU', 'LSTM', 'BiLSTM', 'CNN', 'CNNASTLSTM', 'HCNN',
     'DLinear', 'PatchTST', 'Transformer', 'Autoformer',
     'iTransformer', 'MICN', 'TimeMixer',
     'IC2ML', 'BatLiNet', 'Severson',
