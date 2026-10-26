@@ -11,7 +11,7 @@
   <a href="https://pytorch.org/"><img alt="PyTorch 2.12.0" src="https://img.shields.io/badge/PyTorch-2.12.0-EE4C2C?style=flat-square&logo=pytorch&logoColor=white"></a>
   <img alt="CUDA 12.6" src="https://img.shields.io/badge/CUDA-12.6-76B900?style=flat-square&logo=nvidia&logoColor=white">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/License-MIT-2ea44f?style=flat-square"></a>
-  <img alt="1,200 completed experiments" src="https://img.shields.io/badge/Experiments-1%2C200-8A2BE2?style=flat-square">
+  <img alt="1,350 completed experiments" src="https://img.shields.io/badge/Experiments-1%2C350-8A2BE2?style=flat-square">
   <a href="https://github.com/LMDHQ-0420/BatteryBench/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/LMDHQ-0420/BatteryBench?style=flat-square&logo=github"></a>
 </p>
 
@@ -71,11 +71,11 @@ BatteryBench 为电池寿命和健康状态预测提供统一的训练与测评�
 | Transformer / 混合器 | Transformer、PatchTST、Autoformer、iTransformer、TimeMixer |
 | 电池专用模型 | BatLiNet、[CNN-ASTLSTM](https://doi.org/10.1016/j.rser.2021.111843)（充电曲线适配）、[HCNN](https://doi.org/10.1016/j.apenergy.2021.116897)（V/I 适配）、IC2ML、Severson |
 
-CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结合循环差分、3D/2D 卷积、充电特征注意力与多尺度循环注意力；HCNN 的 BatteryBench 适配在三个任务中使用充电 V/I；当只观测到一个循环时，循环差分分支为零。原始实现：[CNN-ASTLSTM](https://github.com/Lipenghua-CQ/CNN-ASTLSTM)、[HCNN](https://data.mendeley.com/datasets/ms2f63ng3y/1)。
+CNN-ASTLSTM 通过 CNN 和主动状态跟踪 LSTM 单元编码充电曲线。HCNN 结合充电曲线差分、3D/2D 卷积、充电特征注意力与多尺度循环注意力。两者均采用 BatteryBench 的充电 V/I 输入，并在轨迹与 RUL 任务中使用历史循环。原始实现：[CNN-ASTLSTM](https://github.com/Lipenghua-CQ/CNN-ASTLSTM)、[HCNN](https://data.mendeley.com/datasets/ms2f63ng3y/1)。
 
 ## 结果
 
-以下汇总覆盖 5 个数据域、3 个任务、16 个模型和种子 1–5，共 1,200 个完整实验。所有数值均为五个种子的**均值 ± 总体标准差**；粗体表示对应列的最优均值。RMSE、MAE 和 MAPE 均越低越好，MAPE 以百分数表示。
+四个数据集与 Four-Level 划分共覆盖 3 个任务、18 个模型、5 个训练种子，即 1,350 个完整实验。结果为五个种子的**均值 ± 总体标准差**；粗体标出各指标均值最优的模型。RMSE、MAE 和 MAPE 均越低越好，MAPE 以百分数表示。
 
 ### 四个数据集
 
@@ -90,8 +90,10 @@ CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结�
 | BiGRU | 0.0283 ± 0.0007 | 0.0200 ± 0.0005 | 2.22 ± 0.06% |
 | BiLSTM | 0.0283 ± 0.0005 | 0.0202 ± 0.0002 | 2.24 ± 0.02% |
 | CNN | 0.0308 ± 0.0004 | 0.0226 ± 0.0003 | 2.48 ± 0.03% |
+| CNN-ASTLSTM | 0.0302 ± 0.0007 | 0.0212 ± 0.0005 | 2.33 ± 0.05% |
 | DLinear | 0.0539 ± 0.0001 | 0.0443 ± 0.0002 | 4.87 ± 0.01% |
 | GRU | 0.0281 ± 0.0008 | **0.0199 ± 0.0007** | **2.20 ± 0.08%** |
+| HCNN | 0.0314 ± 0.0013 | 0.0222 ± 0.0008 | 2.46 ± 0.08% |
 | IC2ML | 0.0284 ± 0.0006 | 0.0202 ± 0.0005 | 2.23 ± 0.05% |
 | iTransformer | 0.0331 ± 0.0014 | 0.0245 ± 0.0013 | 2.71 ± 0.14% |
 | LSTM | 0.0304 ± 0.0022 | 0.0220 ± 0.0013 | 2.43 ± 0.14% |
@@ -108,11 +110,13 @@ CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结�
 |:---:|:---:|:---:|:---:|
 | Autoformer | 0.3713 ± 0.0002 | 0.3331 ± 0.0003 | 352.28 ± 1.38% |
 | BatLiNet | 0.1656 ± 0.0157 | 0.1417 ± 0.0158 | 189.28 ± 18.02% |
-| BiGRU | **0.0729 ± 0.0057** | **0.0481 ± 0.0031** | 17.00 ± 1.59% |
+| BiGRU | 0.0729 ± 0.0057 | 0.0481 ± 0.0031 | 17.00 ± 1.59% |
 | BiLSTM | 0.0757 ± 0.0079 | 0.0484 ± 0.0031 | **16.71 ± 1.51%** |
 | CNN | 0.0781 ± 0.0025 | 0.0513 ± 0.0018 | 20.59 ± 1.92% |
+| CNN-ASTLSTM | **0.0634 ± 0.0031** | **0.0404 ± 0.0023** | 49.49 ± 11.37% |
 | DLinear | 0.3024 ± 0.0012 | 0.2565 ± 0.0006 | 267.27 ± 4.86% |
 | GRU | 0.0846 ± 0.0109 | 0.0558 ± 0.0086 | 17.86 ± 2.80% |
+| HCNN | 0.0696 ± 0.0019 | 0.0464 ± 0.0015 | 58.57 ± 8.32% |
 | IC2ML | 0.0754 ± 0.0051 | 0.0515 ± 0.0035 | 19.74 ± 2.94% |
 | iTransformer | 0.0932 ± 0.0026 | 0.0628 ± 0.0023 | 21.85 ± 2.32% |
 | LSTM | 0.0903 ± 0.0171 | 0.0595 ± 0.0112 | 19.55 ± 4.49% |
@@ -132,9 +136,11 @@ CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结�
 | BiGRU | **348.7108 ± 16.5302** | 173.5165 ± 6.5658 | 35.48 ± 2.67% |
 | BiLSTM | 363.8498 ± 19.4175 | 180.3630 ± 8.3527 | 37.74 ± 2.58% |
 | CNN | 363.2264 ± 21.7098 | **172.1728 ± 4.5653** | 36.50 ± 2.38% |
+| CNN-ASTLSTM | 442.3932 ± 47.9710 | 196.5751 ± 11.3569 | **28.06 ± 1.47%** |
 | DLinear | 657.1648 ± 1.1415 | 421.1658 ± 0.3785 | 91.90 ± 0.89% |
 | GRU | 365.4432 ± 25.3909 | 182.6584 ± 10.3783 | 37.45 ± 3.05% |
-| IC2ML | 387.1932 ± 13.3224 | 177.6986 ± 7.7100 | **33.74 ± 0.96%** |
+| HCNN | 485.5409 ± 26.9214 | 222.6248 ± 9.0082 | 30.63 ± 1.44% |
+| IC2ML | 387.1932 ± 13.3224 | 177.6986 ± 7.7100 | 33.74 ± 0.96% |
 | iTransformer | 442.6612 ± 43.0281 | 214.3215 ± 15.4555 | 49.28 ± 7.15% |
 | LSTM | 379.0283 ± 19.3657 | 192.8145 ± 8.2462 | 41.91 ± 2.25% |
 | MICN | 405.4890 ± 20.1809 | 194.5459 ± 11.6446 | 45.00 ± 4.55% |
@@ -155,8 +161,10 @@ CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结�
 | BiGRU | **0.0051 ± 0.0004** | 0.0037 ± 0.0002 | 0.39 ± 0.02% |
 | BiLSTM | 0.0057 ± 0.0003 | 0.0041 ± 0.0002 | 0.43 ± 0.02% |
 | CNN | 0.0055 ± 0.0004 | 0.0042 ± 0.0003 | 0.43 ± 0.03% |
+| CNN-ASTLSTM | 0.0072 ± 0.0002 | 0.0047 ± 0.0002 | 0.49 ± 0.02% |
 | DLinear | 0.0086 ± 0.0005 | 0.0060 ± 0.0004 | 0.62 ± 0.04% |
 | GRU | 0.0058 ± 0.0005 | 0.0040 ± 0.0003 | 0.41 ± 0.03% |
+| HCNN | 0.0053 ± 0.0001 | 0.0039 ± 0.0002 | 0.41 ± 0.02% |
 | IC2ML | 0.0052 ± 0.0004 | **0.0036 ± 0.0002** | **0.38 ± 0.03%** |
 | iTransformer | 0.0052 ± 0.0002 | 0.0038 ± 0.0001 | 0.40 ± 0.01% |
 | LSTM | 0.0056 ± 0.0001 | 0.0041 ± 0.0002 | 0.42 ± 0.03% |
@@ -176,12 +184,14 @@ CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结�
 | BiGRU | 0.0016 ± 0.0002 | 0.0013 ± 0.0001 | 0.13 ± 0.01% |
 | BiLSTM | 0.0015 ± 0.0002 | 0.0012 ± 0.0002 | 0.12 ± 0.02% |
 | CNN | 0.0018 ± 0.0003 | 0.0015 ± 0.0002 | 0.15 ± 0.02% |
+| CNN-ASTLSTM | 0.0019 ± 0.0004 | 0.0016 ± 0.0004 | 0.16 ± 0.04% |
 | DLinear | 0.0038 ± 0.0006 | 0.0030 ± 0.0005 | 0.30 ± 0.05% |
 | GRU | 0.0255 ± 0.0038 | 0.0255 ± 0.0038 | 2.55 ± 0.38% |
+| HCNN | **0.0013 ± 0.0003** | **0.0010 ± 0.0003** | **0.10 ± 0.03%** |
 | IC2ML | 0.0019 ± 0.0006 | 0.0017 ± 0.0007 | 0.17 ± 0.07% |
 | iTransformer | 0.0025 ± 0.0009 | 0.0021 ± 0.0008 | 0.21 ± 0.08% |
 | LSTM | 0.0255 ± 0.0043 | 0.0255 ± 0.0043 | 2.55 ± 0.43% |
-| MICN | **0.0013 ± 0.0005** | **0.0010 ± 0.0005** | **0.10 ± 0.05%** |
+| MICN | 0.0013 ± 0.0005 | 0.0010 ± 0.0005 | 0.10 ± 0.05% |
 | MLP | 0.0163 ± 0.0139 | 0.0159 ± 0.0141 | 1.59 ± 1.41% |
 | PatchTST | 0.0022 ± 0.0005 | 0.0018 ± 0.0004 | 0.18 ± 0.04% |
 | Severson | 0.0020 ± 0.0000 | 0.0018 ± 0.0000 | 0.18 ± 0.00% |
@@ -197,8 +207,10 @@ CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结�
 | BiGRU | 160.1677 ± 10.0058 | 135.5630 ± 4.5983 | 12.58 ± 0.58% |
 | BiLSTM | 166.7667 ± 11.5042 | 140.5816 ± 3.4163 | 13.05 ± 0.14% |
 | CNN | 168.2221 ± 11.3398 | 148.2543 ± 7.6671 | 13.28 ± 0.47% |
+| CNN-ASTLSTM | **129.9930 ± 37.6879** | **114.3605 ± 35.8562** | **9.86 ± 2.82%** |
 | DLinear | 361.5422 ± 10.5955 | 324.0481 ± 13.1305 | 26.34 ± 1.14% |
 | GRU | 164.2689 ± 8.4353 | 137.9854 ± 5.0763 | 12.83 ± 0.12% |
+| HCNN | 181.3802 ± 18.8313 | 164.4028 ± 15.0564 | 14.34 ± 0.68% |
 | IC2ML | 166.8828 ± 7.3884 | 154.9905 ± 9.9430 | 13.77 ± 0.45% |
 | iTransformer | 166.7551 ± 10.1439 | 138.1514 ± 2.5486 | 12.97 ± 0.11% |
 | LSTM | 158.5198 ± 1.7628 | 145.0293 ± 3.2521 | 13.12 ± 0.12% |
@@ -207,7 +219,7 @@ CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结�
 | PatchTST | 224.5182 ± 9.5085 | 181.6441 ± 8.1904 | 14.90 ± 0.67% |
 | Severson | 263.6643 ± 0.0000 | 234.1276 ± 0.0000 | 21.62 ± 0.00% |
 | TimeMixer | 160.7581 ± 5.2362 | 149.2538 ± 5.1948 | 13.23 ± 0.16% |
-| Transformer | **150.5835 ± 18.6582** | **129.4043 ± 10.1495** | **11.69 ± 1.41%** |
+| Transformer | 150.5835 ± 18.6582 | 129.4043 ± 10.1495 | 11.69 ± 1.41% |
 
 #### Na-ion
 
@@ -220,8 +232,10 @@ CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结�
 | BiGRU | 0.0340 ± 0.0044 | 0.0253 ± 0.0027 | 2.92 ± 0.29% |
 | BiLSTM | 0.0332 ± 0.0062 | 0.0228 ± 0.0041 | 2.62 ± 0.45% |
 | CNN | 0.0257 ± 0.0004 | 0.0189 ± 0.0008 | 2.21 ± 0.09% |
+| CNN-ASTLSTM | 0.0252 ± 0.0012 | 0.0181 ± 0.0016 | 2.12 ± 0.18% |
 | DLinear | 0.0357 ± 0.0001 | 0.0246 ± 0.0003 | 2.84 ± 0.04% |
 | GRU | 0.0390 ± 0.0021 | 0.0270 ± 0.0019 | 3.10 ± 0.20% |
+| HCNN | 0.0406 ± 0.0004 | 0.0273 ± 0.0007 | 3.12 ± 0.08% |
 | IC2ML | **0.0208 ± 0.0001** | **0.0123 ± 0.0004** | **1.46 ± 0.04%** |
 | iTransformer | 0.0361 ± 0.0012 | 0.0236 ± 0.0003 | 2.70 ± 0.04% |
 | LSTM | 0.0388 ± 0.0023 | 0.0272 ± 0.0022 | 3.13 ± 0.24% |
@@ -241,8 +255,10 @@ CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结�
 | BiGRU | 0.0439 ± 0.0019 | 0.0324 ± 0.0014 | 3.78 ± 0.14% |
 | BiLSTM | 0.0455 ± 0.0026 | 0.0335 ± 0.0018 | 3.90 ± 0.17% |
 | CNN | 0.0497 ± 0.0013 | 0.0371 ± 0.0004 | 4.28 ± 0.06% |
+| CNN-ASTLSTM | 0.0479 ± 0.0037 | 0.0357 ± 0.0029 | 4.14 ± 0.31% |
 | DLinear | 0.0648 ± 0.0142 | 0.0509 ± 0.0122 | 5.88 ± 1.40% |
 | GRU | 0.0430 ± 0.0005 | 0.0318 ± 0.0005 | 3.72 ± 0.06% |
+| HCNN | 0.0497 ± 0.0010 | 0.0364 ± 0.0006 | 4.23 ± 0.07% |
 | IC2ML | 0.0461 ± 0.0039 | 0.0342 ± 0.0025 | 3.97 ± 0.26% |
 | iTransformer | 0.0464 ± 0.0008 | 0.0349 ± 0.0006 | 4.12 ± 0.08% |
 | LSTM | 0.0448 ± 0.0035 | 0.0329 ± 0.0024 | 3.84 ± 0.26% |
@@ -262,8 +278,10 @@ CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结�
 | BiGRU | 31.1202 ± 1.3051 | 29.2437 ± 0.7538 | 17.47 ± 0.41% |
 | BiLSTM | 28.6130 ± 0.8142 | 27.6486 ± 0.7217 | 16.71 ± 0.47% |
 | CNN | 32.6544 ± 1.7111 | 30.2983 ± 1.0210 | 18.88 ± 0.89% |
+| CNN-ASTLSTM | 30.7456 ± 2.6266 | 28.8887 ± 1.3439 | 17.69 ± 1.18% |
 | DLinear | 31.3505 ± 0.1125 | 25.7642 ± 0.2325 | 16.99 ± 0.07% |
 | GRU | 31.9082 ± 2.2543 | 29.5268 ± 1.3410 | 17.99 ± 1.31% |
+| HCNN | 29.4244 ± 0.5777 | 28.4259 ± 0.5094 | 17.26 ± 0.18% |
 | IC2ML | 30.5636 ± 3.4352 | 28.9260 ± 2.2562 | 17.51 ± 0.87% |
 | iTransformer | 31.6871 ± 3.0907 | 28.1804 ± 2.7111 | 17.22 ± 0.97% |
 | LSTM | 29.8415 ± 1.5228 | 27.7123 ± 0.7196 | 16.47 ± 0.77% |
@@ -285,14 +303,16 @@ CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结�
 | BiGRU | 0.0573 ± 0.0006 | 0.0429 ± 0.0007 | 957.95 ± 7.12% |
 | BiLSTM | 0.0569 ± 0.0006 | 0.0435 ± 0.0006 | 955.80 ± 7.19% |
 | CNN | 0.0550 ± 0.0016 | 0.0409 ± 0.0004 | 964.53 ± 12.80% |
+| CNN-ASTLSTM | 0.0563 ± 0.0007 | 0.0429 ± 0.0010 | 909.60 ± 10.97% |
 | DLinear | 0.0604 ± 0.0012 | 0.0473 ± 0.0015 | 971.38 ± 4.21% |
 | GRU | 0.0572 ± 0.0011 | 0.0433 ± 0.0004 | 957.27 ± 4.14% |
+| HCNN | 0.0538 ± 0.0004 | 0.0411 ± 0.0008 | **891.82 ± 53.43%** |
 | IC2ML | **0.0506 ± 0.0011** | **0.0372 ± 0.0010** | 971.51 ± 14.43% |
 | iTransformer | 0.0552 ± 0.0009 | 0.0419 ± 0.0009 | 972.38 ± 7.80% |
 | LSTM | 0.0566 ± 0.0004 | 0.0435 ± 0.0002 | 954.21 ± 4.33% |
 | MICN | 0.0559 ± 0.0029 | 0.0411 ± 0.0030 | 974.27 ± 13.46% |
 | MLP | 0.0582 ± 0.0008 | 0.0462 ± 0.0008 | 930.96 ± 8.22% |
-| PatchTST | 0.0790 ± 0.0010 | 0.0632 ± 0.0006 | **906.69 ± 8.03%** |
+| PatchTST | 0.0790 ± 0.0010 | 0.0632 ± 0.0006 | 906.69 ± 8.03% |
 | Severson | 0.0715 ± 0.0000 | 0.0495 ± 0.0000 | 978.99 ± 0.00% |
 | TimeMixer | 0.0552 ± 0.0016 | 0.0411 ± 0.0007 | 1090.15 ± 60.71% |
 | Transformer | 0.0527 ± 0.0027 | 0.0384 ± 0.0024 | 985.16 ± 52.01% |
@@ -306,8 +326,10 @@ CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结�
 | BiGRU | 0.1295 ± 0.0152 | 0.1026 ± 0.0161 | 624.44 ± 158.36% |
 | BiLSTM | 0.1192 ± 0.0225 | 0.0929 ± 0.0216 | 656.05 ± 37.49% |
 | CNN | 0.0872 ± 0.0064 | 0.0655 ± 0.0051 | 390.92 ± 149.05% |
+| CNN-ASTLSTM | 0.1186 ± 0.0249 | 0.0906 ± 0.0231 | 531.14 ± 137.74% |
 | DLinear | 0.1885 ± 0.0439 | 0.1484 ± 0.0442 | 772.92 ± 101.95% |
 | GRU | 0.1412 ± 0.0025 | 0.1121 ± 0.0025 | 722.53 ± 29.48% |
+| HCNN | 0.1278 ± 0.0168 | 0.0978 ± 0.0171 | 443.35 ± 259.28% |
 | IC2ML | 0.0888 ± 0.0040 | 0.0669 ± 0.0029 | 338.77 ± 19.99% |
 | iTransformer | 0.0799 ± 0.0124 | 0.0604 ± 0.0102 | 543.35 ± 92.69% |
 | LSTM | 0.1415 ± 0.0049 | 0.1125 ± 0.0044 | 708.63 ± 26.00% |
@@ -327,8 +349,10 @@ CNN-ASTLSTM 使用充电曲线 CNN 和主动状态跟踪 LSTM 单元。HCNN 结�
 | BiGRU | 400.3597 ± 1.2082 | 319.3447 ± 14.6099 | 145.00 ± 16.48% |
 | BiLSTM | 400.5899 ± 1.8732 | 317.4677 ± 16.2167 | 142.88 ± 18.30% |
 | CNN | 208.9290 ± 12.3716 | 132.0302 ± 15.2837 | 57.50 ± 10.82% |
+| CNN-ASTLSTM | 314.0900 ± 31.2201 | 210.3732 ± 25.4263 | 85.98 ± 18.27% |
 | DLinear | 419.5346 ± 4.6148 | 287.1526 ± 7.2475 | 105.96 ± 8.44% |
 | GRU | 399.9932 ± 0.7725 | 318.9993 ± 12.1273 | 144.60 ± 13.68% |
+| HCNN | 293.2005 ± 66.6471 | 191.3029 ± 74.4559 | 83.68 ± 38.72% |
 | IC2ML | 233.6156 ± 38.9599 | 119.7139 ± 20.6861 | **34.68 ± 6.45%** |
 | iTransformer | 400.8350 ± 0.9193 | 331.9076 ± 8.1840 | 159.18 ± 9.23% |
 | LSTM | 399.8031 ± 0.7016 | 325.4490 ± 6.4834 | 151.89 ± 7.31% |
@@ -440,6 +464,21 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap>143.71&nbsp;±&nbsp;9.76%</td>
 </tr>
 <tr>
+<td align="center" nowrap>CNN-ASTLSTM</td>
+<td align="center" nowrap>0.0339&nbsp;±&nbsp;0.0012</td>
+<td align="center" nowrap>0.0229&nbsp;±&nbsp;0.0014</td>
+<td align="center" nowrap>2.43&nbsp;±&nbsp;0.14%</td>
+<td align="center" nowrap>0.0304&nbsp;±&nbsp;0.0029</td>
+<td align="center" nowrap>0.0211&nbsp;±&nbsp;0.0022</td>
+<td align="center" nowrap>2.33&nbsp;±&nbsp;0.23%</td>
+<td align="center" nowrap>0.0575&nbsp;±&nbsp;0.0155</td>
+<td align="center" nowrap>0.0521&nbsp;±&nbsp;0.0159</td>
+<td align="center" nowrap>6.02&nbsp;±&nbsp;1.84%</td>
+<td align="center" nowrap>0.0756&nbsp;±&nbsp;0.0078</td>
+<td align="center" nowrap>0.0652&nbsp;±&nbsp;0.0053</td>
+<td align="center" nowrap>120.82&nbsp;±&nbsp;2.59%</td>
+</tr>
+<tr>
 <td align="center" nowrap>DLinear</td>
 <td align="center" nowrap>0.0471&nbsp;±&nbsp;0.0025</td>
 <td align="center" nowrap>0.0413&nbsp;±&nbsp;0.0028</td>
@@ -468,6 +507,21 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap>0.0867&nbsp;±&nbsp;0.0080</td>
 <td align="center" nowrap>0.0727&nbsp;±&nbsp;0.0070</td>
 <td align="center" nowrap>129.18&nbsp;±&nbsp;0.97%</td>
+</tr>
+<tr>
+<td align="center" nowrap>HCNN</td>
+<td align="center" nowrap>0.0281&nbsp;±&nbsp;0.0010</td>
+<td align="center" nowrap>0.0190&nbsp;±&nbsp;0.0006</td>
+<td align="center" nowrap>2.04&nbsp;±&nbsp;0.06%</td>
+<td align="center" nowrap>0.0330&nbsp;±&nbsp;0.0047</td>
+<td align="center" nowrap>0.0234&nbsp;±&nbsp;0.0050</td>
+<td align="center" nowrap>2.59&nbsp;±&nbsp;0.54%</td>
+<td align="center" nowrap>0.0796&nbsp;±&nbsp;0.0157</td>
+<td align="center" nowrap>0.0738&nbsp;±&nbsp;0.0155</td>
+<td align="center" nowrap>8.52&nbsp;±&nbsp;1.84%</td>
+<td align="center" nowrap>0.1825&nbsp;±&nbsp;0.1005</td>
+<td align="center" nowrap>0.1581&nbsp;±&nbsp;0.0948</td>
+<td align="center" nowrap>140.20&nbsp;±&nbsp;13.50%</td>
 </tr>
 <tr>
 <td align="center" nowrap>IC2ML</td>
@@ -658,12 +712,12 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 </tr>
 <tr>
 <td align="center" nowrap>BiGRU</td>
-<td align="center" nowrap><strong>0.0438&nbsp;±&nbsp;0.0013</strong></td>
+<td align="center" nowrap>0.0438&nbsp;±&nbsp;0.0013</td>
 <td align="center" nowrap>0.0316&nbsp;±&nbsp;0.0044</td>
 <td align="center" nowrap>3.41&nbsp;±&nbsp;0.42%</td>
 <td align="center" nowrap>0.0848&nbsp;±&nbsp;0.0064</td>
-<td align="center" nowrap><strong>0.0368&nbsp;±&nbsp;0.0017</strong></td>
-<td align="center" nowrap><strong>6.01&nbsp;±&nbsp;0.33%</strong></td>
+<td align="center" nowrap>0.0368&nbsp;±&nbsp;0.0017</td>
+<td align="center" nowrap>6.01&nbsp;±&nbsp;0.33%</td>
 <td align="center" nowrap>0.1867&nbsp;±&nbsp;0.0248</td>
 <td align="center" nowrap>0.1512&nbsp;±&nbsp;0.0271</td>
 <td align="center" nowrap>27.21&nbsp;±&nbsp;4.49%</td>
@@ -691,7 +745,7 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap>0.0447&nbsp;±&nbsp;0.0015</td>
 <td align="center" nowrap><strong>0.0296&nbsp;±&nbsp;0.0008</strong></td>
 <td align="center" nowrap><strong>3.24&nbsp;±&nbsp;0.07%</strong></td>
-<td align="center" nowrap><strong>0.0828&nbsp;±&nbsp;0.0060</strong></td>
+<td align="center" nowrap>0.0828&nbsp;±&nbsp;0.0060</td>
 <td align="center" nowrap>0.0446&nbsp;±&nbsp;0.0056</td>
 <td align="center" nowrap>6.70&nbsp;±&nbsp;0.73%</td>
 <td align="center" nowrap>0.1640&nbsp;±&nbsp;0.0145</td>
@@ -700,6 +754,21 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap>0.2938&nbsp;±&nbsp;0.0965</td>
 <td align="center" nowrap>0.2553&nbsp;±&nbsp;0.0890</td>
 <td align="center" nowrap>175.03&nbsp;±&nbsp;11.05%</td>
+</tr>
+<tr>
+<td align="center" nowrap>CNN-ASTLSTM</td>
+<td align="center" nowrap><strong>0.0432&nbsp;±&nbsp;0.0019</strong></td>
+<td align="center" nowrap>0.0314&nbsp;±&nbsp;0.0027</td>
+<td align="center" nowrap>3.39&nbsp;±&nbsp;0.27%</td>
+<td align="center" nowrap><strong>0.0813&nbsp;±&nbsp;0.0086</strong></td>
+<td align="center" nowrap><strong>0.0353&nbsp;±&nbsp;0.0058</strong></td>
+<td align="center" nowrap><strong>5.76&nbsp;±&nbsp;0.81%</strong></td>
+<td align="center" nowrap>0.1725&nbsp;±&nbsp;0.0260</td>
+<td align="center" nowrap>0.1345&nbsp;±&nbsp;0.0302</td>
+<td align="center" nowrap>24.80&nbsp;±&nbsp;3.59%</td>
+<td align="center" nowrap>0.4413&nbsp;±&nbsp;0.1331</td>
+<td align="center" nowrap>0.4154&nbsp;±&nbsp;0.1345</td>
+<td align="center" nowrap>139.76&nbsp;±&nbsp;17.06%</td>
 </tr>
 <tr>
 <td align="center" nowrap>DLinear</td>
@@ -730,6 +799,21 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap>0.3054&nbsp;±&nbsp;0.0010</td>
 <td align="center" nowrap>0.2788&nbsp;±&nbsp;0.0010</td>
 <td align="center" nowrap>114.88&nbsp;±&nbsp;0.08%</td>
+</tr>
+<tr>
+<td align="center" nowrap>HCNN</td>
+<td align="center" nowrap>0.0489&nbsp;±&nbsp;0.0020</td>
+<td align="center" nowrap>0.0326&nbsp;±&nbsp;0.0029</td>
+<td align="center" nowrap>3.57&nbsp;±&nbsp;0.27%</td>
+<td align="center" nowrap>0.0943&nbsp;±&nbsp;0.0252</td>
+<td align="center" nowrap>0.0522&nbsp;±&nbsp;0.0236</td>
+<td align="center" nowrap>7.37&nbsp;±&nbsp;2.28%</td>
+<td align="center" nowrap>0.1852&nbsp;±&nbsp;0.0216</td>
+<td align="center" nowrap>0.1526&nbsp;±&nbsp;0.0244</td>
+<td align="center" nowrap>27.44&nbsp;±&nbsp;3.85%</td>
+<td align="center" nowrap>0.4503&nbsp;±&nbsp;0.2068</td>
+<td align="center" nowrap>0.3863&nbsp;±&nbsp;0.1939</td>
+<td align="center" nowrap>186.73&nbsp;±&nbsp;27.93%</td>
 </tr>
 <tr>
 <td align="center" nowrap>IC2ML</td>
@@ -964,6 +1048,21 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap>511.69&nbsp;±&nbsp;479.22%</td>
 </tr>
 <tr>
+<td align="center" nowrap>CNN-ASTLSTM</td>
+<td align="center" nowrap>-</td>
+<td align="center" nowrap>-</td>
+<td align="center" nowrap>-</td>
+<td align="center" nowrap>338.0768&nbsp;±&nbsp;48.3563</td>
+<td align="center" nowrap>299.3652&nbsp;±&nbsp;50.2934</td>
+<td align="center" nowrap>36.29&nbsp;±&nbsp;6.52%</td>
+<td align="center" nowrap>503.7686&nbsp;±&nbsp;90.8344</td>
+<td align="center" nowrap>425.1637&nbsp;±&nbsp;103.6213</td>
+<td align="center" nowrap>146.60&nbsp;±&nbsp;43.23%</td>
+<td align="center" nowrap>1259.1658&nbsp;±&nbsp;628.3566</td>
+<td align="center" nowrap>1220.8645&nbsp;±&nbsp;628.1370</td>
+<td align="center" nowrap>712.03&nbsp;±&nbsp;353.47%</td>
+</tr>
+<tr>
 <td align="center" nowrap>DLinear</td>
 <td align="center" nowrap>-</td>
 <td align="center" nowrap>-</td>
@@ -994,6 +1093,21 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap>332.88&nbsp;±&nbsp;64.68%</td>
 </tr>
 <tr>
+<td align="center" nowrap>HCNN</td>
+<td align="center" nowrap>-</td>
+<td align="center" nowrap>-</td>
+<td align="center" nowrap>-</td>
+<td align="center" nowrap>289.2646&nbsp;±&nbsp;30.7214</td>
+<td align="center" nowrap>252.5065&nbsp;±&nbsp;30.6503</td>
+<td align="center" nowrap>30.50&nbsp;±&nbsp;3.82%</td>
+<td align="center" nowrap>386.9561&nbsp;±&nbsp;67.9824</td>
+<td align="center" nowrap>366.0509&nbsp;±&nbsp;65.8326</td>
+<td align="center" nowrap>128.32&nbsp;±&nbsp;27.04%</td>
+<td align="center" nowrap><strong>395.2050&nbsp;±&nbsp;41.7319</strong></td>
+<td align="center" nowrap><strong>334.0657&nbsp;±&nbsp;71.6026</strong></td>
+<td align="center" nowrap><strong>167.43&nbsp;±&nbsp;59.23%</strong></td>
+</tr>
+<tr>
 <td align="center" nowrap>IC2ML</td>
 <td align="center" nowrap>-</td>
 <td align="center" nowrap>-</td>
@@ -1005,8 +1119,8 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap>184.7533&nbsp;±&nbsp;52.5924</td>
 <td align="center" nowrap><strong>56.93&nbsp;±&nbsp;21.27%</strong></td>
 <td align="center" nowrap>413.2107&nbsp;±&nbsp;47.2969</td>
-<td align="center" nowrap><strong>358.3383&nbsp;±&nbsp;60.7985</strong></td>
-<td align="center" nowrap><strong>186.66&nbsp;±&nbsp;48.34%</strong></td>
+<td align="center" nowrap>358.3383&nbsp;±&nbsp;60.7985</td>
+<td align="center" nowrap>186.66&nbsp;±&nbsp;48.34%</td>
 </tr>
 <tr>
 <td align="center" nowrap>iTransformer</td>
@@ -1064,7 +1178,7 @@ Four-Level 表使用两行表头：第一行是泛化层级，第二行依次为
 <td align="center" nowrap><strong>202.9692&nbsp;±&nbsp;10.7287</strong></td>
 <td align="center" nowrap><strong>180.5774&nbsp;±&nbsp;11.6868</strong></td>
 <td align="center" nowrap>64.86&nbsp;±&nbsp;4.66%</td>
-<td align="center" nowrap><strong>404.8696&nbsp;±&nbsp;21.0490</strong></td>
+<td align="center" nowrap>404.8696&nbsp;±&nbsp;21.0490</td>
 <td align="center" nowrap>372.4896&nbsp;±&nbsp;35.6333</td>
 <td align="center" nowrap>201.36&nbsp;±&nbsp;29.14%</td>
 </tr>

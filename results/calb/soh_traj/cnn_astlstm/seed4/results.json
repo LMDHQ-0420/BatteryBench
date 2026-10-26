@@ -1,0 +1,11 @@
+{
+  "domain": "calb",
+  "task": "soh_traj",
+  "model": "cnn_astlstm",
+  "n_samples": 496,
+  "n_batteries": 5,
+  "mae": 0.00491381048310374,
+  "mse": 5.1935031895041096e-05,
+  "rmse": 0.007206596415440586,
+  "mape": 0.005119282536530745
+}

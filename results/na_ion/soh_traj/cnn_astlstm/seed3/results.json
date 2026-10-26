@@ -1,0 +1,11 @@
+{
+  "domain": "na_ion",
+  "task": "soh_traj",
+  "model": "cnn_astlstm",
+  "n_samples": 1086,
+  "n_batteries": 11,
+  "mae": 0.01979333924172439,
+  "mse": 0.0007040162451617587,
+  "rmse": 0.02653330445236248,
+  "mape": 0.02315019497022177
+}

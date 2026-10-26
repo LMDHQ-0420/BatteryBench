@@ -14,13 +14,12 @@ TASKS = ('soh_traj', 'soh_point', 'rul')
 LEVELS = ('L1', 'L2', 'L3', 'L4')
 MODELS = (
     ('autoformer', 'Autoformer'), ('batlinet', 'BatLiNet'), ('bigru', 'BiGRU'), ('bilstm', 'BiLSTM'),
-    ('cnn', 'CNN'), ('dlinear', 'DLinear'), ('gru', 'GRU'), ('ic2ml', 'IC2ML'),
-    ('itransformer', 'iTransformer'), ('lstm', 'LSTM'), ('micn', 'MICN'),
-    ('mlp', 'MLP'), ('patchtst', 'PatchTST'), ('severson', 'Severson'),
+    ('cnn', 'CNN'), ('cnn_astlstm', 'CNN-ASTLSTM'), ('dlinear', 'DLinear'), ('gru', 'GRU'),
+    ('hcnn', 'HCNN'), ('ic2ml', 'IC2ML'), ('itransformer', 'iTransformer'), ('lstm', 'LSTM'),
+    ('micn', 'MICN'), ('mlp', 'MLP'), ('patchtst', 'PatchTST'), ('severson', 'Severson'),
     ('timemixer', 'TimeMixer'), ('transformer', 'Transformer'),
 )
-ADDITIONAL_MODELS = (('cnn_astlstm', 'CNN-ASTLSTM'), ('hcnn', 'HCNN'))
-DISPLAY = dict(MODELS + ADDITIONAL_MODELS)
+DISPLAY = dict(MODELS)
 DOMAIN_NAMES = {
     'li_ion': ('Li-ion', '锂离子'),
     'calb': ('CALB', 'CALB'),
@@ -45,21 +44,8 @@ def load_summary(domain: str, task: str, model: str) -> dict:
     return data
 
 
-def complete_model(model: str) -> bool:
-    try:
-        return all(
-            load_summary(domain, task, model)
-            for domain in (*DOMAINS, 'four_level')
-            for task in TASKS
-        )
-    except (OSError, ValueError, KeyError):
-        return False
-
-
 def collect() -> dict:
-    models = MODELS + tuple(
-        item for item in ADDITIONAL_MODELS if complete_model(item[0])
-    )
+    models = MODELS
     standard = {}
     for domain in DOMAINS:
         standard[domain] = {}
@@ -152,13 +138,13 @@ def results_section(summary: dict, chinese: bool) -> str:
     if chinese:
         lines = [
             '## 结果', '',
-            f'以下汇总覆盖 5 个数据域、3 个任务、{len(models)} 个模型和种子 1–5，共 {summary["n_experiments"]:,} 个完整实验。所有数值均为五个种子的**均值 ± 总体标准差**；粗体表示对应列的最优均值。RMSE、MAE 和 MAPE 均越低越好，MAPE 以百分数表示。', '',
+            f'四个数据集与 Four-Level 划分共覆盖 3 个任务、{len(models)} 个模型、5 个训练种子，即 {summary["n_experiments"]:,} 个完整实验。结果为五个种子的**均值 ± 总体标准差**；粗体标出各指标均值最优的模型。RMSE、MAE 和 MAPE 均越低越好，MAPE 以百分数表示。', '',
             '### 四个数据集', '',
         ]
     else:
         lines = [
             '## Results', '',
-            f'The complete summary covers five domains, three tasks, {len(models)} models, and seeds 1–5: {summary["n_experiments"]:,} complete experiments. Values are **mean ± population standard deviation** over five seeds. Bold marks the best mean in each metric column; lower is better for RMSE, MAE, and MAPE. MAPE is shown as a percentage.', '',
+            f'Across four datasets and the Four-Level split, we report three tasks, {len(models)} models, and five training seeds: {summary["n_experiments"]:,} complete experiments. Values are **mean ± population standard deviation** over five seeds. Bold marks the lowest mean in each metric column. RMSE, MAE, and MAPE are lower-is-better; MAPE is shown as a percentage.', '',
             '### Four Datasets', '',
         ]
     for domain in DOMAINS:

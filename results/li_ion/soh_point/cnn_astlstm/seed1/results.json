@@ -1,0 +1,11 @@
+{
+  "domain": "li_ion",
+  "task": "soh_point",
+  "model": "cnn_astlstm",
+  "n_samples": 337414,
+  "n_batteries": 188,
+  "mae": 0.03891633293846487,
+  "mse": 0.0037666386226681125,
+  "rmse": 0.061372946993509384,
+  "mape": 0.47067345154767554
+}
