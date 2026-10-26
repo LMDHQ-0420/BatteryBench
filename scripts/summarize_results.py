@@ -86,11 +86,26 @@ def formatted(stats: dict, metric: str, best: float, nowrap: bool = False, html:
     return f'<strong>{text}</strong>' if html else f'**{text}**'
 
 
+def ranked_models(records: dict, models: tuple, columns: tuple) -> list:
+    wins = {model: 0 for model, _ in models}
+    ranks = {model: 0 for model, _ in models}
+    for level, metric in columns:
+        values = {
+            model: value(records[model][level] if level else records[model], metric)[0]
+            for model, _ in models
+        }
+        best = min(values.values())
+        for position, model in enumerate(sorted(values, key=lambda name: (values[name], name))):
+            ranks[model] += position
+            wins[model] += math.isclose(values[model], best, rel_tol=1e-12, abs_tol=1e-15)
+    return sorted(models, key=lambda item: (wins[item[0]], -ranks[item[0]], item[0]))
+
+
 def standard_table(records: dict, models: tuple) -> str:
     best = {metric: min(value(records[model], metric)[0] for model, _ in models)
             for metric in METRICS}
     rows = ['| Model | RMSE | MAE | MAPE |', '|:---:|:---:|:---:|:---:|']
-    for model, name in models:
+    for model, name in ranked_models(records, models, tuple((None, metric) for metric in METRICS)):
         cells = [formatted(records[model], metric, best[metric]) for metric in METRICS]
         rows.append(f"| {name} | " + ' | '.join(cells) + ' |')
     return '\n'.join(rows)
@@ -115,7 +130,8 @@ def four_level_table(records: dict, models: tuple) -> str:
           for _ in LEVELS],
         '</tr>', '</thead>', '<tbody>',
     ]
-    for model, name in models:
+    columns = tuple((level, metric) for level in best for metric in METRICS)
+    for model, name in ranked_models(records, models, columns):
         lines += ['<tr>', f'<td align="center" nowrap>{name}</td>']
         for level in LEVELS:
             if level not in records[model]:
@@ -138,13 +154,13 @@ def results_section(summary: dict, chinese: bool) -> str:
     if chinese:
         lines = [
             '## 结果', '',
-            f'四个数据集与 Four-Level 划分共覆盖 3 个任务、{len(models)} 个模型、5 个训练种子，即 {summary["n_experiments"]:,} 个完整实验。结果为五个种子的**均值 ± 总体标准差**；粗体标出各指标均值最优的模型。RMSE、MAE 和 MAPE 均越低越好，MAPE 以百分数表示。', '',
+            f'四个数据集与 Four-Level 划分共覆盖 3 个任务、{len(models)} 个模型、5 个训练种子，即 {summary["n_experiments"]:,} 个完整实验。结果为五个种子的**均值 ± 总体标准差**；粗体标出各指标均值最优的模型。每张表按最优指标数量从少到多排列，数量相同时按所有指标的平均名次排列，表现较好的模型在下方。RMSE、MAE 和 MAPE 均越低越好，MAPE 以百分数表示。', '',
             '### 四个数据集', '',
         ]
     else:
         lines = [
             '## Results', '',
-            f'Across four datasets and the Four-Level split, we report three tasks, {len(models)} models, and five training seeds: {summary["n_experiments"]:,} complete experiments. Values are **mean ± population standard deviation** over five seeds. Bold marks the lowest mean in each metric column. RMSE, MAE, and MAPE are lower-is-better; MAPE is shown as a percentage.', '',
+            f'Across four datasets and the Four-Level split, we report three tasks, {len(models)} models, and five training seeds: {summary["n_experiments"]:,} complete experiments. Values are **mean ± population standard deviation** over five seeds. Bold marks the lowest mean in each metric column. Each table runs from fewer best-in-column results at the top to more at the bottom; ties are ranked by average position across all metric columns. RMSE, MAE, and MAPE are lower-is-better; MAPE is shown as a percentage.', '',
             '### Four Datasets', '',
         ]
     for domain in DOMAINS:
